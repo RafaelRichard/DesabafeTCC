@@ -1,0 +1,28 @@
+# Ambiente virtual
+venv/
+env/
+
+# Arquivos de banco de dados
+db.sqlite3
+
+# Cache de Python
+__pycache__/
+/node_modules
+*.pyc
+*.pyo
+
+# Arquivos de log
+*.log
+
+# Arquivos de IDE
+.vscode/
+.idea/
+
+
+# Arquivos de configuração de ferramentas locais
+*.env
+*.pot
+*.iml
+
+# Arquivos de cobertura de testes
+.coverage
