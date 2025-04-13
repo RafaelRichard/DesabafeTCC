@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FiUsers } from 'react-icons/fi'; // Importando o ícone de usuários
 import { GiBrain } from 'react-icons/gi'; // Importando o ícone do cérebro detalhado
+import { useRouter } from 'next/navigation'; // Importando o hook do Next.js para redirecionamento
 
 // Função para decodificar o JWT
 const decodeJwt = (token: string) => {
@@ -19,10 +20,16 @@ const ClientOnlyHeader = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false); // Estado para verificar se o usuário está logado
   const [userRole, setUserRole] = useState<string | null>(null); // Estado para armazenar a role do usuário
   const [loading, setLoading] = useState(true); // Estado para controlar o carregamento do estado de login
+  const [mounted, setMounted] = useState(false); // Estado para verificar se o componente foi montado no cliente
+  const router = useRouter(); // Hook do Next.js para redirecionamento
 
   useEffect(() => {
-    // Função para verificar e atualizar o estado de autenticação
-    const checkAuthStatus = () => {
+    // Isso assegura que o router só será usado no lado do cliente
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) {
       const token = localStorage.getItem('auth_token');
       if (token) {
         const decodedToken = decodeJwt(token);
@@ -33,26 +40,19 @@ const ClientOnlyHeader = () => {
         setUserRole(null);
       }
       setLoading(false); // Quando terminar de verificar o login, definimos o estado de loading como false
-    };
+    }
+  }, [mounted]);
 
-    // Inicializa a checagem de autenticação
-    checkAuthStatus();
-
-    // Adiciona um listener para mudanças no localStorage (detectar alterações no localStorage)
-    const handleStorageChange = () => {
-      checkAuthStatus(); // Verifica novamente se o estado de login mudou
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-
-    // Limpeza do listener ao desmontar o componente
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
+  // Função para fazer o logout
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token'); // Remover o token de autenticação do localStorage
+    setIsLoggedIn(false); // Atualizar o estado para indicar que o usuário não está mais logado
+    setUserRole(null); // Limpar a role
+    router.push('/'); // Redireciona para a página inicial após o logout
+  };
 
   // Caso ainda esteja carregando o estado de login, não renderiza o menu
-  if (loading) {
+  if (loading || !mounted) {
     return null; // Ou você pode retornar um componente de carregamento, se preferir
   }
 
@@ -82,21 +82,59 @@ const ClientOnlyHeader = () => {
               </Link>
             ))}
 
-            {/* Link para Gerenciar Usuários */}
+            {/* Links personalizados com base na role */}
             {isLoggedIn && userRole && (
-              <Link
-                href={userRole === 'admin' ? '/admin/area-admin' : '/admin/area-do-usuario'} // Direciona para a página baseada na role
-                className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300"
-              >
-                <FiUsers size={20} />
-                <span>Área do {userRole === 'admin' ? 'Admin' : 'Usuário'}</span> {/* Exibe a role do usuário */}
-              </Link>
+              <>
+                {userRole.toLowerCase() === 'admin' && (
+                  <Link
+                    href="/area-admin"
+                    className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300"
+                  >
+                    <FiUsers size={20} />
+                    <span>Área do Admin</span>
+                  </Link>
+                )}
+
+                {userRole.toLowerCase() === 'psiquiatra' && (
+                  <Link
+                    href="/psiquiatras"
+                    className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300"
+                  >
+                    <FiUsers size={20} />
+                    <span>Área do Psiquiatra</span>
+                  </Link>
+                )}
+
+                {userRole.toLowerCase() === 'psicologo' && (
+                  <Link
+                    href="/psicologos"
+                    className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300"
+                  >
+                    <FiUsers size={20} />
+                    <span>Área do Psicólogo</span>
+                  </Link>
+                )}
+
+                {userRole.toLowerCase() === 'usuario' && (
+                  <Link
+                    href="/area-do-usuario"
+                    className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300"
+                  >
+                    <FiUsers size={20} />
+                    <span>Área do Usuário</span>
+                  </Link>
+                )}
+              </>
             )}
 
-            {/* Se o usuário estiver logado, exibe o ícone de usuário */}
+            {/* Botão de Sair */}
             {isLoggedIn ? (
-              <div className="flex items-center space-x-2">
-              </div>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 text-sm font-medium"
+              >
+                Sair
+              </button>
             ) : (
               <Link
                 href="/login"
@@ -131,22 +169,59 @@ const ClientOnlyHeader = () => {
                   </Link>
                 ))}
 
-                {/* Link para Gerenciar Usuários */}
+                {/* Links personalizados com base na role */}
                 {isLoggedIn && userRole && (
-                  <Link
-                    href={userRole === 'admin' ? '/admin/area-admin' : '/admin/area-do-usuario'} // Direciona para a página baseada na role
-                    className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300"
-                  >
-                    <FiUsers size={20} />
-                    <span>Área do {userRole === 'admin' ? 'Admin' : 'Usuário'}</span> {/* Exibe a role do usuário */}
-                  </Link>
+                  <>
+                    {userRole.toLowerCase() === 'admin' && (
+                      <Link
+                        href="/area-admin"
+                        className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300"
+                      >
+                        <FiUsers size={20} />
+                        <span>Área do Admin</span>
+                      </Link>
+                    )}
+
+                    {userRole.toLowerCase() === 'psiquiatra' && (
+                      <Link
+                        href="/area-psiquiatra"
+                        className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300"
+                      >
+                        <FiUsers size={20} />
+                        <span>Área do Psiquiatra</span>
+                      </Link>
+                    )}
+
+                    {userRole.toLowerCase() === 'psicologo' && (
+                      <Link
+                        href="/area-psicologo"
+                        className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300"
+                      >
+                        <FiUsers size={20} />
+                        <span>Área do Psicólogo</span>
+                      </Link>
+                    )}
+
+                    {userRole.toLowerCase() === 'usuario' && (
+                      <Link
+                        href="/area-do-usuario"
+                        className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300"
+                      >
+                        <FiUsers size={20} />
+                        <span>Área do Usuário</span>
+                      </Link>
+                    )}
+                  </>
                 )}
 
-                {/* Se o usuário estiver logado, exibe o ícone de usuário */}
+                {/* Botão de Sair */}
                 {isLoggedIn ? (
-                  <div className="flex items-center space-x-2">
-        
-                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="block px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 text-sm font-medium"
+                  >
+                    Sair
+                  </button>
                 ) : (
                   <Link
                     href="/login"
