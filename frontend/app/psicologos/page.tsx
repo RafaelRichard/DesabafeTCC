@@ -5,10 +5,17 @@ import { useEffect, useState } from 'react';
 export default function AreaPsicologo() {
     const [dados, setDados] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null); // Novo estado para mensagens de erro
 
     useEffect(() => {
         const fetchDados = async () => {
             const token = localStorage.getItem('auth_token');
+
+            if (!token) {
+                setError('Você precisa estar logado para acessar essa página.');
+                setLoading(false);
+                return;
+            }
 
             try {
                 const response = await fetch('http://localhost:8000/api/usuario/', {
@@ -16,19 +23,24 @@ export default function AreaPsicologo() {
                         Authorization: `Bearer ${token}`,
                     },
                 });
-                
-                console.log('Status da resposta:', response.status); // Verifica o código de status da resposta
-                
+
+                // Verifica se a resposta é válida
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    console.error('Erro detalhado:', errorData);
-                    throw new Error(errorData.error || 'Erro ao buscar dados do psicólogo');
+                    if (response.status === 404) {
+                        setError('Usuário não encontrado. Verifique se você está logado corretamente.');
+                    } else {
+                        setError('Erro ao carregar dados. Tente novamente.');
+                    }
+                    setLoading(false);
+                    return;
                 }
-                
+
+                // Tenta parsear a resposta como JSON
                 const data = await response.json();
                 setDados(data);
             } catch (error) {
-                console.error(error);
+                // Captura o erro e exibe uma mensagem
+                setError('Erro ao tentar carregar os dados. Verifique sua conexão ou tente mais tarde.');
             } finally {
                 setLoading(false);
             }
@@ -45,10 +57,10 @@ export default function AreaPsicologo() {
         );
     }
 
-    if (!dados) {
+    if (error) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-100">
-                <p className="text-red-500">Erro ao carregar seus dados.</p>
+                <p className="text-red-500">{error}</p>
             </div>
         );
     }
@@ -81,9 +93,13 @@ export default function AreaPsicologo() {
                     </div>
                     <div>
                         <p className="font-semibold">Status:</p>
-                        <span className={`font-medium px-2 py-1 rounded ${
-                            dados.status === 'ativo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'
-                        }`}>
+                        <span
+                            className={`font-medium px-2 py-1 rounded ${
+                                dados.status === 'ativo'
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-700'
+                            }`}
+                        >
                             {dados.status}
                         </span>
                     </div>
