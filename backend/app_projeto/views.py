@@ -141,6 +141,12 @@ def listar_usuarios(request):
     serializer = UsuarioSerializer(usuarios, many=True)
     return Response(serializer.data)
 
+@api_view(['GET'])
+def listar_psiquiatras(request):
+    psiquiatras = Usuario.objects.filter(role='Psiquiatra')
+    serializer = UsuarioSerializer(psiquiatras, many=True)
+    return Response(serializer.data)
+
 @csrf_exempt  # se necessário para desabilitar a verificação de CSRF
 def editar_usuario(request, id):
     usuario = get_object_or_404(Usuario, id=id)

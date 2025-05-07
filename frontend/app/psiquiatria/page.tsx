@@ -1,4 +1,36 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+interface Psiquiatra {
+  id: number;
+  nome: string;
+  email: string;
+  crm: string;
+  especialidade?: string;
+}
+
 export default function Psiquiatria() {
+  const [psiquiatras, setPsiquiatras] = useState<Psiquiatra[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchPsiquiatras() {
+      try {
+        const response = await fetch('http://localhost:8000/api/psiquiatras/');
+        if (!response.ok) throw new Error('Erro ao buscar psiquiatras');
+        const data = await response.json();
+        setPsiquiatras(data);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchPsiquiatras();
+  }, []);
+
   return (
     <div className="pt-20 bg-gray-50 min-h-screen flex justify-center">
       <div className="container mx-auto px-6 py-8">
@@ -10,60 +42,39 @@ export default function Psiquiatria() {
             Consulte com os melhores psiquiatras do Brasil de forma online e segura.
           </p>
 
-          {/* Lista de médicos */}
-          <div className="space-y-6">
-            {/* Médico 1 */}
-            <div className="bg-gray-100 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 flex items-center space-x-6">
-              <img 
-                src="/img/logo.png"
-                alt="Dr. João Silva" 
-                className="w-20 h-20 rounded-full object-cover"
-              />
-              <div>
-                <h3 className="text-xl font-semibold text-indigo-600 mb-2">Dr. João Silva</h3>
-                <p className="text-gray-600 mb-2">Especialista em transtornos de ansiedade, depressão e TDAH.</p>
-                <p className="text-gray-500 text-sm">CRM: 123456-SP</p>
-                <button className="bg-teal-600 text-white px-6 py-2 rounded-md hover:bg-teal-700 transition duration-300 mt-4">
-                  Agendar Consulta
-                </button>
-              </div>
+          {/* Lista dinâmica de psiquiatras */}
+          {loading ? (
+            <p className="text-center text-gray-500">Carregando médicos...</p>
+          ) : (
+            <div className="space-y-6">
+              {psiquiatras.length === 0 ? (
+                <p className="text-center text-gray-500">Nenhum psiquiatra encontrado.</p>
+              ) : (
+                psiquiatras.map((medico) => (
+                  <div
+                    key={medico.id}
+                    className="bg-gray-100 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 flex items-center space-x-6"
+                  >
+                    <img
+                      src="/img/logo.png" // Você pode adaptar isso para um campo vindo do banco depois
+                      alt={`Foto de ${medico.nome}`}
+                      className="w-20 h-20 rounded-full object-cover"
+                    />
+                    <div>
+                      <h3 className="text-xl font-semibold text-indigo-600 mb-2">{medico.nome}</h3>
+                      <p className="text-gray-600 mb-2">
+                        {medico.especialidade || 'Especialista em saúde mental'}
+                      </p>
+                      <p className="text-gray-500 text-sm">CRM: {medico.crm || 'Não informado'}</p>
+                      <button className="bg-teal-600 text-white px-6 py-2 rounded-md hover:bg-teal-700 transition duration-300 mt-4">
+                        Agendar Consulta
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-
-            {/* Médico 2 */}
-            <div className="bg-gray-100 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 flex items-center space-x-6">
-              <img 
-                src="/img/cerebro.jpg"
-                alt="Dra. Ana Souza" 
-                className="w-20 h-20 rounded-full object-cover"
-              />
-              <div>
-                <h3 className="text-xl font-semibold text-indigo-600 mb-2">Dra. Ana Souza</h3>
-                <p className="text-gray-600 mb-2">Especialista em psicoterapia e acompanhamento psicológico.</p>
-                <p className="text-gray-500 text-sm">CRM: 654321-RJ</p>
-                <button className="bg-teal-600 text-white px-6 py-2 rounded-md hover:bg-teal-700 transition duration-300 mt-4">
-                  Agendar Consulta
-                </button>
-              </div>
-            </div>
-
-            {/* Médico 3 */}
-            <div className="bg-gray-100 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 flex items-center space-x-6">
-              <img 
-                src="/img/ligacoes.jpg"
-                alt="Dr. Carlos Pereira" 
-                className="w-20 h-20 rounded-full object-cover"
-              />
-              <div>
-                <h3 className="text-xl font-semibold text-indigo-600 mb-2">Dr. Carlos Pereira</h3>
-                <p className="text-gray-600 mb-2">Especialista em psicopatologias e distúrbios do sono.</p>
-                <p className="text-gray-500 text-sm">CRM: 789456-MG</p>
-                <button className="bg-teal-600 text-white px-6 py-2 rounded-md hover:bg-teal-700 transition duration-300 mt-4">
-                  Agendar Consulta
-                </button>
-              </div>
-            </div>
-          </div>
-
+          )}
         </div>
       </div>
     </div>
