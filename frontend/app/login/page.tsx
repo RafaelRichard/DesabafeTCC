@@ -90,10 +90,10 @@ export default function Login() {
                         router.push('/area-admin');
                         break;
                     case 'Psicologo':
-                        router.push('/psicologos');
+                        router.push('/area-do-psicologo');
                         break;
                     case 'Psiquiatra':
-                        router.push('/psiquiatras');
+                        router.push('/area-do-psiquiatra');
                         break;
                     case 'Paciente':
                         router.push('/area-do-paciente');
