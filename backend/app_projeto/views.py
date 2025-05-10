@@ -19,8 +19,9 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .permissions import IsAdmin, IsPaciente, IsPsicologo, IsPsiquiatra
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
-from .serializers import UsuarioSerializer
+from rest_framework import status   
+from .serializers import UsuarioSerializer, AgendamentoSerializer
+from .models import Agendamento, AgendamentoHistorico
 
 
 
@@ -135,17 +136,44 @@ def logout_usuario(request):
     response.delete_cookie('jwt')
     return response
 
+
 @api_view(['GET'])
 def listar_usuarios(request):
     usuarios = Usuario.objects.all()
     serializer = UsuarioSerializer(usuarios, many=True)
     return Response(serializer.data)
 
+
+
 @api_view(['GET'])
-def listar_psiquiatras(request):
-    psiquiatras = Usuario.objects.filter(role='Psiquiatra')
-    serializer = UsuarioSerializer(psiquiatras, many=True)
+def listar_psiquiatras(request, id=None):
+    if id:
+        try:
+            # Agora estamos filtrando apenas pelo role 'Psiquiatra'
+            psiquiatra = Usuario.objects.get(id=id, role='Psiquiatra')
+            serializer = UsuarioSerializer(psiquiatra)
+            return Response(serializer.data)
+        except Usuario.DoesNotExist:
+            return Response({"error": "Psiquiatra não encontrado"}, status=404)
+    else:
+        # Listando todos os usuários com o role 'Psiquiatra'
+        psiquiatras = Usuario.objects.filter(role='Psiquiatra')
+        serializer = UsuarioSerializer(psiquiatras, many=True)
+        return Response(serializer.data)
+    
+
+@api_view(['GET'])
+def listar_psiquiatras_id(request, id):
+    try:
+        psiquiatra = Usuario.objects.get(id=id, role='Psiquiatra')
+    except Usuario.DoesNotExist:
+        return Response({'error': 'Psiquiatra não encontrado'}, status=404)
+
+    serializer = UsuarioSerializer(psiquiatra)
     return Response(serializer.data)
+
+
+
 
 @csrf_exempt  # se necessário para desabilitar a verificação de CSRF
 def editar_usuario(request, id):
@@ -196,29 +224,6 @@ def rota_protegida(request):
     
     return JsonResponse({"error": "Acesso não autorizado"}, status=401)
 
-
-@csrf_exempt
-def google_login_view(request):
-    if request.method == "POST":
-        data = json.loads(request.body)
-        token = data.get("token")
-
-        # Validar o token com o Google
-        google_response = requests.get(f"https://www.googleapis.com/oauth2/v3/tokeninfo?id_token={token}")
-        if google_response.status_code != 200:
-            return JsonResponse({"error": "Token inválido"}, status=400)
-
-        user_data = google_response.json()
-        email = user_data.get("email")
-        name = user_data.get("name")
-
-        # Criar usuário se não existir
-        user, created = User.objects.get_or_create(username=email, defaults={"email": email, "first_name": name})
-
-        jwt_token = generate_jwt(user)
-        return JsonResponse({"token": jwt_token})
-
-
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)  # Gera os tokens padrão
@@ -265,3 +270,73 @@ class PacienteOnlyView(APIView):
 
     def get(self, request):
         return Response({"message": "Acesso permitido para pacientes"})
+
+
+#REGION AGENDAMENTO
+
+@api_view(['GET'])
+def listar_agendamentos(request):
+    agendamentos = Agendamento.objects.all()
+    serializer = AgendamentoSerializer(agendamentos, many=True)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+def criar_agendamento(request):
+    serializer = AgendamentoSerializer(data=request.data)
+    if serializer.is_valid():
+        agendamento = serializer.save()
+
+        # Adiciona histórico
+        AgendamentoHistorico.objects.create(
+            agendamento=agendamento,
+            status_anterior='pendente'
+        )
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['PUT'])
+def atualizar_agendamento(request, id):
+    try:
+        agendamento = Agendamento.objects.get(id=id)
+    except Agendamento.DoesNotExist:
+        return Response({"error": "Agendamento não encontrado"}, status=404)
+
+    status_anterior = agendamento.status
+    serializer = AgendamentoSerializer(agendamento, data=request.data)
+
+    if serializer.is_valid():
+        serializer.save()
+
+        # Registra no histórico se o status mudou
+        if request.data.get("status") and request.data.get("status") != status_anterior:
+            AgendamentoHistorico.objects.create(
+                agendamento=agendamento,
+                status_anterior=status_anterior
+            )
+
+        return Response(serializer.data)
+    return Response(serializer.errors, status=400)
+
+
+@csrf_exempt
+def google_login_view(request):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        token = data.get("token")
+
+        # Validar o token com o Google
+        google_response = requests.get(f"https://www.googleapis.com/oauth2/v3/tokeninfo?id_token={token}")
+        if google_response.status_code != 200:
+            return JsonResponse({"error": "Token inválido"}, status=400)
+
+        user_data = google_response.json()
+        email = user_data.get("email")
+        name = user_data.get("name")
+
+        # Criar usuário se não existir
+        user, created = User.objects.get_or_create(username=email, defaults={"email": email, "first_name": name})
+
+        jwt_token = generate_jwt(user)
+        return JsonResponse({"token": jwt_token})
+

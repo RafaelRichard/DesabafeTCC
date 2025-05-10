@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Psiquiatra {
   id: number;
@@ -13,6 +14,7 @@ interface Psiquiatra {
 export default function Psiquiatria() {
   const [psiquiatras, setPsiquiatras] = useState<Psiquiatra[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchPsiquiatras() {
@@ -31,6 +33,27 @@ export default function Psiquiatria() {
     fetchPsiquiatras();
   }, []);
 
+
+function handleAgendarConsulta(psiquiatraId: number) {
+  if (typeof window === 'undefined') return;
+
+  const token = localStorage.getItem('auth_token');
+  const userId = localStorage.getItem('user_id');
+
+  console.log('Token JWT lido do localStorage:', token);
+
+  if (!token || !userId) {
+    alert('Você precisa estar logado para agendar uma consulta.');
+    router.push('/login');
+    return;
+  }
+
+  router.push(`/agendamento/${psiquiatraId}`);
+}
+
+
+
+
   return (
     <div className="pt-20 bg-gray-50 min-h-screen flex justify-center">
       <div className="container mx-auto px-6 py-8">
@@ -42,7 +65,6 @@ export default function Psiquiatria() {
             Consulte com os melhores psiquiatras do Brasil de forma online e segura.
           </p>
 
-          {/* Lista dinâmica de psiquiatras */}
           {loading ? (
             <p className="text-center text-gray-500">Carregando médicos...</p>
           ) : (
@@ -56,7 +78,7 @@ export default function Psiquiatria() {
                     className="bg-gray-100 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 flex items-center space-x-6"
                   >
                     <img
-                      src="/img/logo.png" // Você pode adaptar isso para um campo vindo do banco depois
+                      src="/img/logo.png"
                       alt={`Foto de ${medico.nome}`}
                       className="w-20 h-20 rounded-full object-cover"
                     />
@@ -66,7 +88,10 @@ export default function Psiquiatria() {
                         {medico.especialidade || 'Especialista em saúde mental'}
                       </p>
                       <p className="text-gray-500 text-sm">CRM: {medico.crm || 'Não informado'}</p>
-                      <button className="bg-teal-600 text-white px-6 py-2 rounded-md hover:bg-teal-700 transition duration-300 mt-4">
+                      <button
+                        onClick={() => handleAgendarConsulta(medico.id)}
+                        className="bg-teal-600 text-white px-6 py-2 rounded-md hover:bg-teal-700 transition duration-300 mt-4"
+                      >
                         Agendar Consulta
                       </button>
                     </div>
