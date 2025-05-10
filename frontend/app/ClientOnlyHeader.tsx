@@ -92,7 +92,7 @@ const ClientOnlyHeader = () => {
                 {userRole.toLowerCase() === 'admin' && <Link href="/area-admin" className="text-sm font-medium text-gray-600 hover:text-purple-600">Área do Admin</Link>}
                 {userRole.toLowerCase() === 'psiquiatra' && <Link href="/area-do-psiquiatra" className="text-sm font-medium text-gray-600 hover:text-purple-600">Área do Psiquiatra</Link>}
                 {userRole.toLowerCase() === 'psicologo' && <Link href="/area-do-psicologo" className="text-sm font-medium text-gray-600 hover:text-purple-600">Área do Psicólogo</Link>}
-                {userRole.toLowerCase() === 'usuario' && <Link href="/area-do-usuario" className="text-sm font-medium text-gray-600 hover:text-purple-600">Área do Usuário</Link>}
+                {userRole.toLowerCase() === 'paciente' && <Link href="/area-do-usuario" className="text-sm font-medium text-gray-600 hover:text-purple-600">Área do Usuário</Link>}
               </>
             )}
 
@@ -145,7 +145,7 @@ const ClientOnlyHeader = () => {
                     {userRole.toLowerCase() === 'admin' && <Link href="/area-admin" className="block p-2 rounded-lg hover:bg-indigo-700 text-sm text-gray-700">Área do Admin</Link>}
                     {userRole.toLowerCase() === 'psiquiatra' && <Link href="/area-psiquiatra" className="block p-2 rounded-lg hover:bg-indigo-700 text-sm text-gray-700">Área do Psiquiatra</Link>}
                     {userRole.toLowerCase() === 'psicologo' && <Link href="/area-psicologo" className="block p-2 rounded-lg hover:bg-indigo-700 text-sm text-gray-700">Área do Psicólogo</Link>}
-                    {userRole.toLowerCase() === 'usuario' && <Link href="/area-do-usuario" className="block p-2 rounded-lg hover:bg-indigo-700 text-sm text-gray-700">Área do Usuário</Link>}
+                    {userRole.toLowerCase() === 'paciente' && <Link href="/area-do-usuario" className="block p-2 rounded-lg hover:bg-indigo-700 text-sm text-gray-700">Área do Usuário</Link>}
                   </>
                 )}
 

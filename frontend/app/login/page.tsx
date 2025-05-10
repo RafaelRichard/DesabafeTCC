@@ -96,7 +96,7 @@ export default function Login() {
                         router.push('/area-do-psiquiatra');
                         break;
                     case 'Paciente':
-                        router.push('/area-do-paciente');
+                        router.push('/area-do-usuario');
                         break;
                     default:
                         setMessage('Tipo de usuário não reconhecido.');

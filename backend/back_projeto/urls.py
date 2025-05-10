@@ -16,10 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from app_projeto.views import cadastrar_usuario, get_csrf_token, login_usuario, rota_protegida
-from app_projeto.views import listar_usuarios , editar_usuario, excluir_usuario, listar_psiquiatras
-from app_projeto.views import google_login_view, MyTokenObtainPairView
 from rest_framework_simplejwt.views import TokenRefreshView
+
+from app_projeto.views import cadastrar_usuario, get_csrf_token, login_usuario, rota_protegida
+from app_projeto.views import listar_usuarios , editar_usuario, excluir_usuario, listar_psiquiatras, listar_psiquiatras_id
+from app_projeto.views import google_login_view, MyTokenObtainPairView
+from app_projeto.views import listar_agendamentos, criar_agendamento, atualizar_agendamento
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -39,5 +42,12 @@ urlpatterns = [
     
     # listagem de psiquiatras
     path('api/psiquiatras/', listar_psiquiatras, name='listar_psiquiatras'),
+    path('api/psiquiatras/<int:id>/', listar_psiquiatras_id, name='listar_psiquiatras_id'),
+
+    #AGENDAMENTO
+
+    path('api/agendamentos/', listar_agendamentos, name='listar_agendamentos'),
+    path('api/agendamentos/criar/', criar_agendamento, name='criar_agendamento'),
+    path('api/agendamentos/<int:id>/atualizar/', atualizar_agendamento, name='atualizar_agendamento'),
 
 ]
