@@ -1,9 +1,16 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiUser, FiPhone, FiClipboard, FiSettings } from 'react-icons/fi'; // Ícones
+import { FiUser, FiClipboard, FiSettings } from 'react-icons/fi';
+
+// Função para pegar o cookie pelo nome
+const getCookie = (name: string): string | null => {
+    const cookie = document.cookie
+        .split('; ')
+        .find(row => row.startsWith(name + '='));
+    return cookie ? decodeURIComponent(cookie.split('=')[1]) : null;
+};
 
 export default function AreaPsicologo() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -13,34 +20,40 @@ export default function AreaPsicologo() {
     const router = useRouter();
 
     useEffect(() => {
-        const authToken = localStorage.getItem('auth_token');
-        
-        // Se não houver token de autenticação, redireciona para o login
-        if (!authToken) {
-            router.push('/login');
-            return;
-        }
-    
-        const userRole = localStorage.getItem('user_role');
-        const userEmail = localStorage.getItem('user_email');
-    
-        // Verifica se o usuário é psicólogo, caso contrário redireciona para o login
-        if (userRole && userEmail && userRole === 'Psicologo') {
-            setIsLoggedIn(true);
-            setRole(userRole);
-            setUserName(userEmail);
-        } else {
-            router.push('/login');
-        }
+        const verificarAutenticacao = async () => {
+            try {
+                const response = await fetch('http://localhost:8000/usuario_jwt/', {
+                    credentials: 'include',
+                });
 
-        // Simula a carga de dados do psicólogo (já vindo do localStorage)
-        setLoading(false);
+                if (!response.ok) {
+                    console.log('Usuário não autenticado, redirecionando para login');
+                    router.push('/login');
+                    return;
+                }
+
+                const data = await response.json();
+                if (data.role === 'Psicologo') {
+                    setIsLoggedIn(true);
+                    setRole(data.role);
+                    setUserName(data.email);
+                } else {
+                    console.log('Usuário não é Psicólogo, redirecionando');
+                    router.push('/login');
+                }
+            } catch (error) {
+                console.error('Erro ao verificar autenticação:', error);
+                router.push('/login');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        verificarAutenticacao();
     }, [router]);
 
     const handleLogout = () => {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user_role');
-        localStorage.removeItem('user_email');
+        document.cookie = "jwt=; Max-Age=0; path=/"; // Limpa o cookie
         setIsLoggedIn(false);
         setRole('');
         setUserName('');
