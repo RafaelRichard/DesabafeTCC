@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from app_projeto.views import cadastrar_usuario, get_csrf_token, login_usuario, rota_protegida
+from app_projeto.views import cadastrar_usuario, get_csrf_token, login_usuario, rota_protegida, logout
 from app_projeto.views import listar_usuarios , editar_usuario, excluir_usuario, listar_psiquiatras, listar_psiquiatras_id
 from app_projeto.views import google_login_view, MyTokenObtainPairView, usuario_autenticado
 from app_projeto.views import listar_agendamentos, criar_agendamento, atualizar_agendamento
@@ -29,6 +29,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('cadastrar_usuario/', cadastrar_usuario, name='cadastrar_usuario'),
     path('login_usuario/', login_usuario, name='login_usuario'),
+    path('logout/', logout, name='logout'),
     path('usuario_jwt/', usuario_autenticado),
     path("api/protegida/", rota_protegida, name="rota_protegida"),
     path("get-csrf-token/", get_csrf_token, name="get-csrf-token"),

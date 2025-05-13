@@ -28,7 +28,7 @@ export default function EditarUsuario() {
             try {
                 const response = await fetch(`http://localhost:8000/api/users/${id}/`);
                 const contentType = response.headers.get('Content-Type');
-        
+
                 if (contentType && contentType.includes('application/json')) {
                     const data = await response.json();
                     setUser(data);
@@ -41,7 +41,7 @@ export default function EditarUsuario() {
                 setLoading(false);
             }
         };
-        
+
         fetchUser();
     }, [id]);
 
@@ -98,7 +98,7 @@ export default function EditarUsuario() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <input
                         type="text"
-                        name="nome"
+                        name="name"
                         value={user.nome || ''}
                         onChange={handleChange}
                         placeholder="Nome"
@@ -124,7 +124,7 @@ export default function EditarUsuario() {
                     />
                     <input
                         type="text"
-                        name="telefone"
+                        name="phone"
                         value={user.telefone || ''}
                         onChange={handleChange}
                         placeholder="Telefone"
@@ -162,6 +162,7 @@ export default function EditarUsuario() {
                     </button>
                 </div>
             </form>
+
         </div>
     );
 }

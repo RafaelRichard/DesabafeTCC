@@ -89,6 +89,10 @@ REST_FRAMEWORK = {
 }
 
 
+
+APPEND_SLASH = False
+
+
 AUTHENTICATION_BACKENDS = [
     'app_projeto.valida.backends.EmailBackend',   
     'django.contrib.auth.backends.ModelBackend', 

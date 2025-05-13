@@ -170,6 +170,7 @@ def usuario_autenticado(request):
         return Response({'error': 'Usuário não encontrado'}, status=404)
 
     return Response({
+        'id': usuario.id,
         'email': usuario.email,
         'role': usuario.role,
         'nome': usuario.nome,
@@ -223,13 +224,18 @@ def usuario_autenticado(request):
 
         
         
-    
+@csrf_exempt
 def logout(request):
     response = JsonResponse({'message': 'Logout realizado com sucesso'})
-    response.delete_cookie('jwt')
+    
+    # Remover o cookie "jwt"
+    response.delete_cookie(
+        key='jwt',
+        path='/',
+        samesite='Lax',  # Mantenha o mesmo valor que foi utilizado na definição do cookie
+    )
+
     return response
-
-
 
 @api_view(['GET'])
 def listar_usuarios(request):
@@ -305,12 +311,14 @@ def excluir_usuario(request, id):
     return JsonResponse({'message': 'Método não permitido'}, status=405)
 
 @api_view(['GET'])
-def get_user(request, id):
+def get_usuario_por_id(request, id):
     try:
-        user = User.objects.get(id=id)
-        return Response(user.serialize(), status=status.HTTP_200_OK)
-    except User.DoesNotExist:
+        usuario = Usuario.objects.get(id=id)
+        serializer = UsuarioSerializer(usuario)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Usuario.DoesNotExist:
         return Response({"message": "Usuário não encontrado"}, status=status.HTTP_404_NOT_FOUND)
+
 
 def rota_protegida(request):
     if hasattr(request, "user_data"):
