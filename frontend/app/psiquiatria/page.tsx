@@ -14,17 +14,52 @@ interface Psiquiatra {
 export default function Psiquiatria() {
   const [psiquiatras, setPsiquiatras] = useState<Psiquiatra[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoadingLogin, setIsLoadingLogin] = useState(true);
   const router = useRouter();
 
+  // ✅ Verifica login ao carregar a página
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/usuario_jwt/', {
+          method: 'GET',
+          credentials: 'include', // ESSENCIAL para enviar cookies!
+        });
+
+        if (res.ok) {
+          const userData = await res.json();
+          console.log('✅ Usuário autenticado:', userData);
+          setIsLoggedIn(!!userData.email);
+        } else {
+          console.warn('⚠️ Usuário não autenticado. Status:', res.status);
+          setIsLoggedIn(false);
+        }
+      } catch (error) {
+        console.error('❌ Erro na verificação de login:', error);
+        setIsLoggedIn(false);
+      } finally {
+        setIsLoadingLogin(false);
+      }
+    };
+
+    checkLoginStatus();
+  }, []);
+
+  // ✅ Busca os psiquiatras ao montar o componente
   useEffect(() => {
     async function fetchPsiquiatras() {
       try {
-        const response = await fetch('http://localhost:8000/api/psiquiatras/');
+        const response = await fetch('http://localhost:8000/api/psiquiatras/', {
+          method: 'GET',
+          credentials: 'include', // não obrigatório aqui, mas mantém consistência
+        });
+
         if (!response.ok) throw new Error('Erro ao buscar psiquiatras');
         const data = await response.json();
         setPsiquiatras(data);
       } catch (error) {
-        console.error(error);
+        console.error('❌ Erro ao buscar psiquiatras:', error);
       } finally {
         setLoading(false);
       }
@@ -33,44 +68,21 @@ export default function Psiquiatria() {
     fetchPsiquiatras();
   }, []);
 
-  // Função para validar se o token JWT é válido
-  function isValidToken(token: string | null): boolean {
-    if (!token) return false;
-
-    try {
-      const decodedToken = JSON.parse(atob(token.split('.')[1]));
-      const expirationTime = decodedToken.exp * 1000;
-      return Date.now() < expirationTime;  // Verifica se o token não expirou
-    } catch (error) {
-      console.error('Erro ao decodificar o token JWT', error);
-      return false;
+  // ✅ Ao clicar para agendar
+  const handleAgendarConsulta = (psiquiatraId: number) => {
+    if (isLoadingLogin) {
+      alert('Verificando login, aguarde...');
+      return;
     }
-  }
 
-  function handleAgendarConsulta(psiquiatraId: number) {
-    if (typeof window === 'undefined') return;
-
-    const token = localStorage.getItem('auth_token');
-    const userId = localStorage.getItem('user_id');
-
-    console.log('Token JWT lido do localStorage:', token);
-
-    // Verifica se o token está presente e é válido
-    if (!isValidToken(token)) {
+    if (!isLoggedIn) {
       alert('Você precisa estar logado para agendar uma consulta.');
       router.push('/login');
       return;
     }
 
-    // Verifica se o userId também está presente
-    if (!userId) {
-      alert('ID do usuário não encontrado.');
-      router.push('/login');
-      return;
-    }
-
     router.push(`/agendamento/${psiquiatraId}`);
-  }
+  };
 
   return (
     <div className="pt-20 bg-gray-50 min-h-screen flex justify-center">

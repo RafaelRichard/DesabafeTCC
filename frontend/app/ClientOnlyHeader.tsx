@@ -27,60 +27,58 @@ const ClientOnlyHeader = () => {
     paciente: 'Área do Usuário',
   };
 
-  // Função para fazer a requisição à API para verificar o JWT no cookie HTTP-Only
-  const checkLoginStatus = async () => {
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/usuario_jwt/', {
+          method: 'GET',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const role = data.role?.trim().toLowerCase();
+
+          if (role && roleLinkMap[role]) {
+            setUserRole(role);
+            setIsLoggedIn(true);
+          } else {
+            console.warn('Role inválida ou não mapeada:', role);
+            setIsLoggedIn(false);
+          }
+        } else {
+          setIsLoggedIn(false);
+        }
+      } catch (err) {
+        console.error('Erro ao verificar login:', err);
+        setIsLoggedIn(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkLoginStatus();
+  }, []);
+
+  const handleLogout = async () => {
     try {
-      const res = await fetch('http://localhost:8000/usuario_jwt/', {
-        method: 'GET',
-        credentials: 'include', // Isso permite que o cookie HTTP-Only seja enviado
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const res = await fetch('http://localhost:8000/logout/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
       });
 
       if (res.ok) {
-        const data = await res.json();
-        console.log('Dados do usuário:', data);
-
-        const role = data.role?.trim().toLowerCase();
-        if (role && roleLinkMap[role]) {
-          setUserRole(role);
-          setIsLoggedIn(true);
-        } else {
-          console.warn('Role inválida ou não mapeada:', role);
-          setIsLoggedIn(false);
-        }
-      } else {
-        console.warn('Falha ao verificar login. Status:', res.status);
-        setIsLoggedIn(false);
-        setUserRole(null);
-      }
-    } catch (err) {
-      console.error('Erro ao verificar login:', err);
-      setIsLoggedIn(false);
-      setUserRole(null);
-    }
-
-    // Alterando o loading após a verificação completa
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    checkLoginStatus();
-  }, []); // A dependência vazia faz com que seja chamado apenas uma vez
-
-  const handleLogout = () => {
-    // Fazer logout, removendo o cookie no backend (o backend deve configurar isso)
-    fetch('http://localhost:8000/logout', {
-      method: 'POST',
-      credentials: 'include', // Isso vai garantir que o cookie HTTP-Only seja removido
-    })
-      .then(() => {
         setIsLoggedIn(false);
         setUserRole(null);
         router.push('/');
-      })
-      .catch((err) => console.error('Erro ao fazer logout:', err));
+      } else {
+        console.error('Erro ao fazer logout. Status:', res.status);
+      }
+    } catch (err) {
+      console.error('Erro ao fazer logout:', err);
+    }
   };
 
   const renderAuthButtons = () => {
@@ -133,13 +131,16 @@ const ClientOnlyHeader = () => {
           </Link>
 
           <div className="hidden md:flex items-center space-x-6">
-            <Link href="/Sobre" className="text-sm text-gray-600 hover:text-purple-600 font-medium">
+            <Link
+              href="/Sobre"
+              className="text-sm text-gray-600 hover:text-purple-600 font-medium"
+            >
               Sobre Nós
             </Link>
 
             <div className="relative">
               <button
-                onClick={() => setDropdownOpen(!dropdownOpen)}
+                onClick={() => setDropdownOpen((prev) => !prev)}
                 className="flex items-center space-x-1 text-sm text-gray-600 hover:text-purple-600 font-medium"
               >
                 <FiUsers />
