@@ -81,6 +81,7 @@ MIDDLEWARE = [
     # 'app_projeto.middleware.TokenAuthMiddleware',  # Comente temporariamente
 ]
 
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',  # Usa JWT

@@ -33,26 +33,44 @@ export default function Psiquiatria() {
     fetchPsiquiatras();
   }, []);
 
+  // Função para validar se o token JWT é válido
+  function isValidToken(token: string | null): boolean {
+    if (!token) return false;
 
-function handleAgendarConsulta(psiquiatraId: number) {
-  if (typeof window === 'undefined') return;
-
-  const token = localStorage.getItem('auth_token');
-  const userId = localStorage.getItem('user_id');
-
-  console.log('Token JWT lido do localStorage:', token);
-
-  if (!token || !userId) {
-    alert('Você precisa estar logado para agendar uma consulta.');
-    router.push('/login');
-    return;
+    try {
+      const decodedToken = JSON.parse(atob(token.split('.')[1]));
+      const expirationTime = decodedToken.exp * 1000;
+      return Date.now() < expirationTime;  // Verifica se o token não expirou
+    } catch (error) {
+      console.error('Erro ao decodificar o token JWT', error);
+      return false;
+    }
   }
 
-  router.push(`/agendamento/${psiquiatraId}`);
-}
+  function handleAgendarConsulta(psiquiatraId: number) {
+    if (typeof window === 'undefined') return;
 
+    const token = localStorage.getItem('auth_token');
+    const userId = localStorage.getItem('user_id');
 
+    console.log('Token JWT lido do localStorage:', token);
 
+    // Verifica se o token está presente e é válido
+    if (!isValidToken(token)) {
+      alert('Você precisa estar logado para agendar uma consulta.');
+      router.push('/login');
+      return;
+    }
+
+    // Verifica se o userId também está presente
+    if (!userId) {
+      alert('ID do usuário não encontrado.');
+      router.push('/login');
+      return;
+    }
+
+    router.push(`/agendamento/${psiquiatraId}`);
+  }
 
   return (
     <div className="pt-20 bg-gray-50 min-h-screen flex justify-center">

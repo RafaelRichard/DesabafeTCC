@@ -22,6 +22,14 @@ from rest_framework.response import Response
 from rest_framework import status   
 from .serializers import UsuarioSerializer, AgendamentoSerializer
 from .models import Agendamento, AgendamentoHistorico
+import jwt
+from django.conf import settings
+from django.core.mail import send_mail
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_decode
+
 
 
 
@@ -122,19 +130,105 @@ def login_usuario(request):
                 key='jwt',
                 value=token,
                 httponly=True,
-                secure=False,  # True em produção
-                samesite='Lax'
+                secure=True,  # True em produção
+                samesite='None'
             )
+            
             return response
         else:
             return JsonResponse({'error': 'Credenciais inválidas'}, status=401)
 
     return JsonResponse({'error': 'Método não permitido'}, status=405)
 
-def logout_usuario(request):
+
+# Essa função você pode colocar em utils.py também se quiser reutilizar
+def decode_jwt(token):
+    try:
+        return jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+@api_view(['GET'])
+def usuario_autenticado(request):
+    token = request.COOKIES.get('jwt')
+    print("JWT Token recebido:", token)
+
+    if not token:
+        return Response({'error': 'Token JWT não encontrado'}, status=401)
+
+    payload = decode_jwt(token)
+    print("Payload decodificado:", payload)
+
+    if not payload:
+        return Response({'error': 'Token inválido ou expirado'}, status=401)
+
+    try:
+        usuario = Usuario.objects.get(id=payload['user_id'])
+    except Usuario.DoesNotExist:
+        return Response({'error': 'Usuário não encontrado'}, status=404)
+
+    return Response({
+        'email': usuario.email,
+        'role': usuario.role,
+        'nome': usuario.nome,
+    })
+
+
+# Recuperação de Senha (envio de e-mail para redefinir a senha)
+# class RecuperarSenhaAPIView(APIView):
+#     def post(self, request):
+#         email = request.data.get('email')
+#         try:
+#             user = User.objects.get(email=email)
+#             uid = urlsafe_base64_encode(force_bytes(user.pk))
+#             token = default_token_generator.make_token(user)
+#             reset_url = f"http://localhost:3000/recuperar-senha/{uid}/{token}/"
+
+#             send_mail(
+#                 'Redefinição de Senha',
+#                 f'Clique no link para redefinir sua senha: {reset_url}',
+#                 'noreply@seudominio.com',
+#                 [email],
+#                 fail_silently=False,
+#             )
+
+#             return Response({'detail': 'Email de recuperação enviado.'})
+#         except User.DoesNotExist:
+#             return Response({'detail': 'Erro interno no servidor.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+# Redefinir Senha
+# class RedefinirSenhaAPIView(APIView):
+#     def post(self, request, uidb64, token):
+#         try:
+#             uid = urlsafe_base64_decode(uidb64).decode('utf-8')
+#             user = get_user_model().objects.get(pk=uid)
+
+#             if not default_token_generator.check_token(user, token):
+#                 return Response({'detail': 'Token inválido ou expirado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+#             nova_senha = request.data.get('password')
+#             if not nova_senha:
+#                 return Response({'detail': 'Nova senha não fornecida.'}, status=status.HTTP_400_BAD_REQUEST)
+
+#             user.set_password(nova_senha)
+#             user.save()
+
+#             return Response({'detail': 'Senha redefinida com sucesso.'}, status=status.HTTP_200_OK)
+
+#         except (TypeError, ValueError, OverflowError, get_user_model().DoesNotExist):
+#             return Response({'detail': 'Token inválido ou usuário não encontrado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        
+        
+    
+def logout(request):
     response = JsonResponse({'message': 'Logout realizado com sucesso'})
     response.delete_cookie('jwt')
     return response
+
 
 
 @api_view(['GET'])

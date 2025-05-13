@@ -20,14 +20,16 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from app_projeto.views import cadastrar_usuario, get_csrf_token, login_usuario, rota_protegida
 from app_projeto.views import listar_usuarios , editar_usuario, excluir_usuario, listar_psiquiatras, listar_psiquiatras_id
-from app_projeto.views import google_login_view, MyTokenObtainPairView
+from app_projeto.views import google_login_view, MyTokenObtainPairView, usuario_autenticado
 from app_projeto.views import listar_agendamentos, criar_agendamento, atualizar_agendamento
 
 
 urlpatterns = [
+    
     path('admin/', admin.site.urls),
     path('cadastrar_usuario/', cadastrar_usuario, name='cadastrar_usuario'),
     path('login_usuario/', login_usuario, name='login_usuario'),
+    path('usuario_jwt/', usuario_autenticado),
     path("api/protegida/", rota_protegida, name="rota_protegida"),
     path("get-csrf-token/", get_csrf_token, name="get-csrf-token"),
     path("api/auth/google/", google_login_view, name="google_login"),
@@ -38,6 +40,11 @@ urlpatterns = [
     path('api/users/', listar_usuarios, name='listar_usuarios'),
     path('api/users/<int:id>/', editar_usuario, name='editar_usuario'),
     path('api/users/<int:id>/delete/', excluir_usuario, name='excluir_usuario'),
+    
+    #Recuperar senha
+    # path('recuperar-senha/', RecuperarSenhaAPIView.as_view(), name='recuperar-senha'),
+    # path('redefinir-senha/<uidb64>/<token>/', RedefinirSenhaAPIView.as_view(), name='redefinir-senha'),
+
     
     
     # listagem de psiquiatras
