@@ -19,25 +19,17 @@ export default function EditarUsuario() {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!id) {
-            console.error('ID não encontrado');
-            return;
-        }
+        if (!id) return;
 
         const fetchUser = async () => {
             try {
                 const response = await fetch(`http://localhost:8000/api/users/${id}/`);
-                const contentType = response.headers.get('Content-Type');
-
-                if (contentType && contentType.includes('application/json')) {
-                    const data = await response.json();
-                    setUser(data);
-                } else {
-                    console.error('Esperado JSON, mas recebido:', contentType);
-                }
-                setLoading(false);
+                const data = await response.json();
+                setUser(data);
             } catch (error) {
-                console.error('Erro ao buscar usuário', error);
+                console.error('Erro ao buscar usuário:', error);
+                setError('Erro ao carregar dados do usuário.');
+            } finally {
                 setLoading(false);
             }
         };
@@ -69,100 +61,100 @@ export default function EditarUsuario() {
                 router.push('/admin/listagem');
             } else {
                 const errorData = await response.json();
-                setError(errorData?.message || 'Erro desconhecido ao atualizar o usuário.');
+                setError(errorData?.message || 'Erro ao atualizar usuário.');
             }
         } catch (error) {
-            console.error('Erro ao atualizar usuário', error);
-            setError('Erro ao atualizar o usuário. Tente novamente mais tarde.');
+            console.error('Erro ao atualizar usuário:', error);
+            setError('Erro inesperado. Tente novamente.');
         }
     };
 
-    const handleCancel = () => {
-        router.push('/admin/listagem');
-    };
+    const handleCancel = () => router.push('/admin/listagem');
 
-    if (loading) {
-        return <div className="flex justify-center items-center p-8">Carregando...</div>;
-    }
-
-    if (!user) {
-        return <div className="flex justify-center items-center p-8 text-red-600">Erro ao carregar usuário. Tente novamente.</div>;
-    }
+    if (loading) return <div className="text-center text-indigo-600 py-16 text-lg">Carregando dados...</div>;
+    if (!user) return <div className="text-center text-red-500 py-16 text-lg">Usuário não encontrado.</div>;
 
     return (
-        <div className="p-8 max-w-4xl mx-auto">
-            <h1 className="text-4xl font-bold mb-6 text-indigo-600 text-center">Editar Usuário</h1>
-            {error && <div className="bg-red-500 text-white p-4 mb-6 rounded-lg">{error}</div>}
+        <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-indigo-100 py-12 px-6">
+            <div className="max-w-3xl mx-auto bg-white p-10 rounded-2xl shadow-xl border border-gray-200">
+                <h1 className="text-4xl font-bold text-center text-indigo-700 mb-8">
+                    Editar Usuário
+                </h1>
 
-            <form onSubmit={handleSubmit} className="space-y-6 bg-white p-8 rounded-lg shadow-lg">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <input
-                        type="text"
-                        name="name"
-                        value={user.nome || ''}
-                        onChange={handleChange}
-                        placeholder="Nome"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                    />
-                    <input
-                        type="email"
-                        name="email"
-                        value={user.email || ''}
-                        onChange={handleChange}
-                        placeholder="Email"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                    />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <input
-                        type="text"
-                        name="cpf"
-                        value={user.cpf || ''}
-                        onChange={handleChange}
-                        placeholder="CPF"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                    />
-                    <input
-                        type="text"
-                        name="phone"
-                        value={user.telefone || ''}
-                        onChange={handleChange}
-                        placeholder="Telefone"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                    />
-                </div>
-                <div>
-                    <select
-                        name="role"
-                        value={user.role || ''}
-                        onChange={handleChange}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                    >
-                        <option value="">Selecione uma função</option>
-                        <option value="admin">Admin</option>
-                        <option value="psicologo">Psicólogo</option>
-                        <option value="medico">Médico</option>
-                        <option value="paciente">Paciente</option>
-                    </select>
-                </div>
+                {error && (
+                    <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded mb-6 text-sm">
+                        {error}
+                    </div>
+                )}
 
-                <div className="flex justify-between">
-                    <button
-                        type="submit"
-                        className="w-full md:w-1/2 bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition-colors"
-                    >
-                        Salvar
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleCancel}
-                        className="w-full md:w-1/2 bg-gray-500 text-white ml-4 py-3 rounded-lg hover:bg-gray-600 transition-colors"
-                    >
-                        Cancelar
-                    </button>
-                </div>
-            </form>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block mb-1 text-gray-700 font-medium">Nome</label>
+                            <input
+                                type="text"
+                                name="nome"
+                                value={user.nome || ''}
+                                onChange={handleChange}
+                                placeholder="Nome completo"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block mb-1 text-gray-700 font-medium">Email</label>
+                            <input
+                                type="email"
+                                name="email"
+                                value={user.email || ''}
+                                onChange={handleChange}
+                                placeholder="Email"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                            />
+                        </div>
+                    </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block mb-1 text-gray-700 font-medium">CPF</label>
+                            <input
+                                type="text"
+                                name="cpf"
+                                value={user.cpf || ''}
+                                onChange={handleChange}
+                                placeholder="000.000.000-00"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block mb-1 text-gray-700 font-medium">Telefone</label>
+                            <input
+                                type="text"
+                                name="telefone"
+                                value={user.telefone || ''}
+                                onChange={handleChange}
+                                placeholder="(00) 00000-0000"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row justify-end gap-4 pt-6">
+                        <button
+                            type="button"
+                            onClick={handleCancel}
+                            className="w-full md:w-auto px-6 py-3 rounded-lg border border-gray-400 text-gray-700 hover:bg-gray-100 transition"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            className="w-full md:w-auto px-6 py-3 rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition"
+                        >
+                            Salvar Alterações
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     );
 }

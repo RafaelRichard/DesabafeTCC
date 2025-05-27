@@ -59,7 +59,20 @@ const ClientOnlyHeader = () => {
     };
 
     checkLoginStatus();
+
+    // 🔁 Atualiza o estado quando o login for alterado em outro lugar
+    const handleAuthChange = () => {
+      setLoading(true);
+      checkLoginStatus();
+    };
+
+    window.addEventListener('authChanged', handleAuthChange);
+
+    return () => {
+      window.removeEventListener('authChanged', handleAuthChange);
+    };
   }, []);
+
 
   const handleLogout = async () => {
     try {
@@ -131,18 +144,17 @@ const ClientOnlyHeader = () => {
           </Link>
 
           <div className="hidden md:flex items-center space-x-6">
-            <Link
-              href="/Sobre"
-              className="text-sm text-gray-600 hover:text-purple-600 font-medium"
-            >
+            <Link href="/Sobre" className="text-sm text-gray-600 hover:text-purple-600 font-medium">
               Sobre Nós
+            </Link>
+            <Link href="/planos" className="text-sm text-gray-600 hover:text-purple-600 font-medium">
+              Planos
             </Link>
 
             <div className="relative">
               <button
                 onClick={() => setDropdownOpen((prev) => !prev)}
-                className="flex items-center space-x-1 text-sm text-gray-600 hover:text-purple-600 font-medium"
-              >
+                className="flex items-center space-x-1 text-sm text-gray-600 hover:text-purple-600 font-medium" >
                 <FiUsers />
                 <span>Buscar Profissional</span>
                 <FiChevronDown />
