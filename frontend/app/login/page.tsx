@@ -76,6 +76,8 @@ export default function Login() {
             // Armazenando o JWT no cookie com o nome correto 'jwt'
             // document.cookie = `jwt=${userInfo.token}; path=/; max-age=3600; secure; HttpOnly`;
 
+            window.dispatchEvent(new Event('authChanged')); 
+
             // Redireciona de acordo com o papel
             switch (userInfo.role) {
                 case 'Admin':
@@ -155,7 +157,7 @@ export default function Login() {
 
                 <p className="mt-4 text-center text-sm">
                     Não tem uma conta?{' '}
-                    <Link href="/cadastro" className="text-indigo-600 hover:underline">
+                    <Link href="/cadastro_usuario" className="text-indigo-600 hover:underline">
                         Cadastre-se
                     </Link>
                 </p>

@@ -9,12 +9,13 @@ interface User {
     email: string;
     role: string;
     cpf: string;
-    phone: string;
+    telefone: string;
 }
 
 export default function Listagem() {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
+    const [activeRole, setActiveRole] = useState<string | null>(null);
     const router = useRouter();
 
     useEffect(() => {
@@ -23,6 +24,9 @@ export default function Listagem() {
                 const response = await fetch('http://localhost:8000/api/users/');
                 const data = await response.json();
                 setUsers(data);
+
+                const initialRole = data.length > 0 ? data[0].role : null;
+                setActiveRole(initialRole);
             } catch (error) {
                 console.error('Erro ao buscar usuários:', error);
             } finally {
@@ -34,8 +38,7 @@ export default function Listagem() {
     }, []);
 
     const handleDelete = async (id: number) => {
-        const confirmDelete = window.confirm("Tem certeza que deseja excluir este usuário?");
-        if (!confirmDelete) return;
+        if (!window.confirm('Tem certeza que deseja excluir este usuário?')) return;
 
         try {
             const response = await fetch(`http://localhost:8000/api/users/${id}/delete/`, {
@@ -43,12 +46,12 @@ export default function Listagem() {
             });
 
             if (response.ok) {
-                setUsers(prev => prev.filter(user => user.id !== id));
+                setUsers((prev) => prev.filter((user) => user.id !== id));
             } else {
-                alert("Erro ao excluir usuário.");
+                alert('Erro ao excluir usuário.');
             }
         } catch (error) {
-            alert("Erro ao excluir usuário.");
+            alert('Erro ao excluir usuário.');
         }
     };
 
@@ -62,46 +65,76 @@ export default function Listagem() {
         return acc;
     }, {});
 
+    const roles = Object.keys(groupedUsers);
+
     if (loading) {
-        return <p className="text-center text-lg text-indigo-600 mt-20">Carregando usuários...</p>;
+        return (
+            <p className="text-center text-lg text-indigo-600 mt-20">Carregando usuários...</p>
+        );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-indigo-100 py-16 px-6">
-            <h1 className="text-5xl font-bold text-center text-indigo-700 mb-12">Usuários do Sistema</h1>
+        <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-indigo-100 px-6 py-12">
+            <h1 className="text-4xl md:text-5xl font-bold text-center text-indigo-700 mb-10">
+                Usuários do Sistema
+            </h1>
 
-            {Object.entries(groupedUsers).map(([role, roleUsers]) => (
-                <div key={role} className="mb-12">
-                    <div className="flex items-center gap-2 mb-6">
-                        <span className="text-2xl font-semibold text-indigo-700 capitalize">{role}</span>
-                        <span className="bg-indigo-200 text-indigo-800 px-3 py-1 rounded-full text-sm font-medium">{roleUsers.length} usuário(s)</span>
-                    </div>
+            {/* Tabs */}
+            <div className="flex flex-wrap justify-center gap-4 mb-8">
+                {roles.map((role) => (
+                    <button
+                        key={role}
+                        onClick={() => setActiveRole(role)}
+                        className={`px-5 py-2 rounded-full font-medium border transition-all
+                ${activeRole === role
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-100'
+                            }`}
+                    >
+                        {role} ({groupedUsers[role].length})
+                    </button>
+                ))}
+            </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-8">
-                        {roleUsers.map(user => (
+            {/* Listagem por Aba Ativa */}
+            {activeRole && (
+                <div>
+                    <h2 className="text-2xl font-bold text-indigo-800 mb-6 capitalize text-center">
+                        {activeRole}
+                    </h2>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {groupedUsers[activeRole].map((user) => (
                             <div
                                 key={user.id}
-                                className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow duration-300 border border-gray-100"
+                                className="bg-gray-200 border border-gray-200 rounded-2xl shadow-md hover:shadow-lg transition-all"
                             >
-                                <div className="p-6 space-y-4">
-                                    <h2 className="text-xl font-bold text-gray-800">{user.name}</h2>
+                                <div className="p-6 space-y-3">
+                                    <h3 className="text-lg font-bold text-gray-800">{user.name}</h3>
                                     <div className="text-sm text-gray-600 space-y-1">
-                                        <p><strong>Email:</strong> {user.email}</p>
-                                        <p><strong>CPF:</strong> {user.cpf}</p>
-                                        <p><strong>Telefone:</strong> {user.phone}</p>
+                                        <p>
+                                            <strong>Email:</strong> {user.email}
+                                        </p>
+                                        <p>
+                                            <strong>CPF:</strong> {user.cpf}
+                                        </p>
+                                        <p>
+                                            <strong>Telefone:</strong> {user.telefone}
+                                        </p>
                                     </div>
                                 </div>
 
-                                <div className="flex justify-between items-center border-t p-4 bg-gray-50 rounded-b-2xl">
+                                <div className="flex justify-between items-center border-t px-6 py-4 bg-gray-300 rounded-b-2xl">
                                     <button
                                         onClick={() => handleEdit(user.id)}
-                                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition duration-200"
+                                        className="text-sm bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg transition"
                                     >
                                         Editar
                                     </button>
+
                                     <button
                                         onClick={() => handleDelete(user.id)}
-                                        className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition duration-200"
+                                        className="text-sm bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg"
                                     >
                                         Excluir
                                     </button>
@@ -110,7 +143,7 @@ export default function Listagem() {
                         ))}
                     </div>
                 </div>
-            ))}
+            )}
         </div>
     );
 }

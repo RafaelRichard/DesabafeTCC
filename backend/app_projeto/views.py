@@ -23,6 +23,10 @@ from rest_framework import status
 from .serializers import UsuarioSerializer, AgendamentoSerializer
 from .models import Agendamento, AgendamentoHistorico
 import jwt
+from rest_framework_simplejwt.tokens import UntypedToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+from rest_framework_simplejwt.tokens import RefreshToken
+from datetime import datetime   
 from django.conf import settings
 from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
@@ -140,42 +144,72 @@ def login_usuario(request):
 
     return JsonResponse({'error': 'Método não permitido'}, status=405)
 
-
-# Essa função você pode colocar em utils.py também se quiser reutilizar
+# Função para decodificar o token JWT com verificação de assinatura
 def decode_jwt(token):
     try:
+        # Decodifica o token com a verificação de assinatura, usando o algoritmo "HS256"
         return jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
         return None
     except jwt.InvalidTokenError:
         return None
-
+    
 @api_view(['GET'])
 def usuario_autenticado(request):
+    # Obtendo o token da cookie
     token = request.COOKIES.get('jwt')
     print("JWT Token recebido:", token)
 
     if not token:
         return Response({'error': 'Token JWT não encontrado'}, status=401)
 
-    payload = decode_jwt(token)
-    print("Payload decodificado:", payload)
-
-    if not payload:
-        return Response({'error': 'Token inválido ou expirado'}, status=401)
-
     try:
-        usuario = Usuario.objects.get(id=payload['user_id'])
+        # Decodificando o token e verificando a assinatura e expiração
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"], options={"verify_exp": True})
+        print("Payload decodificado:", payload)
+
+        # Verificando se o 'user_id' (não 'sub') está no payload
+        user_id = payload.get('user_id')
+        if not user_id:
+            raise TokenError("Token não contém 'user_id'.")
+
+        # Buscando o usuário com o 'user_id'
+        usuario = Usuario.objects.get(id=user_id)
+        
+    except jwt.ExpiredSignatureError:
+        return Response({'error': 'Token expirado'}, status=401)
+    except jwt.InvalidTokenError:
+        return Response({'error': 'Token inválido'}, status=401)
     except Usuario.DoesNotExist:
         return Response({'error': 'Usuário não encontrado'}, status=404)
+    except TokenError as e:
+        return Response({'error': str(e)}, status=401)
 
-    return Response({
+    # Preparando a resposta
+    response_data = {
         'id': usuario.id,
         'email': usuario.email,
         'role': usuario.role,
         'nome': usuario.nome,
-    })
+    }
+    # Retornando as informações do usuário
+    return Response(response_data)
 
+def create_jwt_for_user(user):
+    # Criando o token de refresh para o usuário
+    refresh = RefreshToken.for_user(user)
+
+    # Adicionando o 'user_id' ao payload do token
+    refresh.payload['user_id'] = user.id
+
+    # Retorna o token de acesso
+    return str(refresh.access_token)
+
+
+def generate_jwt(usuario):
+    refresh = RefreshToken.for_user(usuario)
+    refresh.payload['user_id'] = usuario.id  # Adicionando o 'user_id' explicitamente
+    return str(refresh.access_token)
 
 # Recuperação de Senha (envio de e-mail para redefinir a senha)
 # class RecuperarSenhaAPIView(APIView):
@@ -278,24 +312,29 @@ def listar_psiquiatras_id(request, id):
 @csrf_exempt  # se necessário para desabilitar a verificação de CSRF
 def editar_usuario(request, id):
     usuario = get_object_or_404(Usuario, id=id)
-    
-    if request.method == 'PUT':
-        # Supondo que você está recebendo um JSON com os dados do usuário
+
+    if request.method == 'GET':
+        return JsonResponse({
+            'id': usuario.id,
+            'nome': usuario.nome,
+            'email': usuario.email,
+            'cpf': usuario.cpf,
+            'telefone': usuario.telefone,
+            'role': usuario.role,
+        }, status=200)
+
+    elif request.method == 'PUT':
         data = json.loads(request.body)
-        
-        # Atualiza os campos com os dados recebidos, usando o nome correto dos campos no modelo
         usuario.nome = data.get('nome', usuario.nome)
         usuario.email = data.get('email', usuario.email)
         usuario.cpf = data.get('cpf', usuario.cpf)
-        usuario.telefone = data.get('telefone', usuario.telefone)  # Usando o nome correto 'telefone'
+        usuario.telefone = data.get('telefone', usuario.telefone)
         usuario.role = data.get('role', usuario.role)
-
-        # Salvar o usuário com as modificações
         usuario.save()
-
         return JsonResponse({'message': 'Usuário atualizado com sucesso'}, status=200)
 
     return JsonResponse({'message': 'Método não permitido'}, status=405)
+
 
 
 @csrf_exempt  # Se necessário, para desabilitar a verificação de CSRF
