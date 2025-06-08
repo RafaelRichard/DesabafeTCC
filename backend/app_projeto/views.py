@@ -2,7 +2,7 @@ from django.http import JsonResponse
 import json
 import re
 import requests
-from .models import Usuario
+from .models import Usuario, Endereco
 from django.contrib.auth.hashers import check_password
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.hashers import make_password
@@ -12,7 +12,7 @@ from django.views.decorators.csrf import csrf_protect
 from .utils import generate_jwt
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth import authenticate, login, get_user_model
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -20,7 +20,7 @@ from .permissions import IsAdmin, IsPaciente, IsPsicologo, IsPsiquiatra
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status   
-from .serializers import UsuarioSerializer, AgendamentoSerializer
+from .serializers import UsuarioSerializer, AgendamentoSerializer, EnderecoSerializer, UsuarioComEnderecoSerializer
 from .models import Agendamento, AgendamentoHistorico
 import jwt
 from rest_framework_simplejwt.tokens import UntypedToken
@@ -33,6 +33,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode
+from rest_framework.permissions import AllowAny
 
 
 
@@ -53,7 +54,7 @@ def cadastrar_usuario(request):
         nome = data.get('name')
         email = data.get('email')
         telefone = data.get('phone', '')
-        cpf = data.get('cpf')
+        cpf = data.get('password')
         senha = data.get('password')
         status = data.get('status', 'ativo')  # Definido como 'ativo' por padrão
         role = data.get('role')
@@ -98,6 +99,21 @@ def cadastrar_usuario(request):
 
         # Salva o usuário no banco de dados
         usuario.save()
+
+        # Salva o endereço, se fornecido
+        endereco_fields = ['logradouro', 'numero', 'complemento', 'bairro', 'cidade', 'estado', 'cep', 'tipo_endereco']
+        if all(data.get(field) for field in ['logradouro', 'numero', 'bairro', 'cidade', 'estado', 'cep', 'tipo_endereco']):
+            Endereco.objects.create(
+                usuario=usuario,
+                logradouro=data.get('logradouro'),
+                numero=data.get('numero'),
+                complemento=data.get('complemento', ''),
+                bairro=data.get('bairro'),
+                cidade=data.get('cidade'),
+                estado=data.get('estado'),
+                cep=data.get('cep'),
+                tipo=data.get('tipo_endereco'),
+            )
 
         # Gera o token JWT para o novo usuário
         token = generate_jwt(usuario)
@@ -314,14 +330,8 @@ def editar_usuario(request, id):
     usuario = get_object_or_404(Usuario, id=id)
 
     if request.method == 'GET':
-        return JsonResponse({
-            'id': usuario.id,
-            'nome': usuario.nome,
-            'email': usuario.email,
-            'cpf': usuario.cpf,
-            'telefone': usuario.telefone,
-            'role': usuario.role,
-        }, status=200)
+        serializer = UsuarioComEnderecoSerializer(usuario)
+        return JsonResponse(serializer.data, status=200)
 
     elif request.method == 'PUT':
         data = json.loads(request.body)
@@ -480,4 +490,46 @@ def google_login_view(request):
 
         jwt_token = generate_jwt(user)
         return JsonResponse({"token": jwt_token})
+
+@api_view(['GET', 'POST', 'PUT'])
+def enderecos_usuario(request, usuario_id):
+    try:
+        usuario = Usuario.objects.get(id=usuario_id)
+    except Usuario.DoesNotExist:
+        return Response({'error': 'Usuário não encontrado.'}, status=404)
+
+    if request.method == 'GET':
+        enderecos = Endereco.objects.filter(usuario=usuario)
+        serializer = EnderecoSerializer(enderecos, many=True)
+        return Response(serializer.data)
+
+    elif request.method in ['POST', 'PUT']:
+        data = request.data
+        # Checa se já existe algum endereço para o usuario
+        endereco_existente = Endereco.objects.filter(usuario=usuario).first()
+        if endereco_existente:
+            # Atualiza o endereço existente
+            serializer = EnderecoSerializer(endereco_existente, data={**data, 'usuario': usuario.id}, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=400)
+        else:
+            # Cria novo endereço
+            required_fields = ['logradouro', 'numero', 'bairro', 'cidade', 'estado', 'cep', 'tipo']
+            missing = [field for field in required_fields if not data.get(field)]
+            if missing:
+                return Response({'error': f'Todos os campos obrigatórios do endereço devem ser preenchidos. Faltando: {", ".join(missing)}'}, status=400)
+            serializer = EnderecoSerializer(data={**data, 'usuario': usuario.id})
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=201)
+            return Response(serializer.errors, status=400)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def detalhar_usuario(request, id):
+    usuario = get_object_or_404(Usuario, id=id)
+    serializer = UsuarioComEnderecoSerializer(usuario)
+    return Response(serializer.data)
 

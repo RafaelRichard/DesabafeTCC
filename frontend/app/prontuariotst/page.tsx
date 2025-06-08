@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 export default function Prontuario() {
     const [historicoClinico, setHistoricoClinico] = useState('');
@@ -38,7 +40,7 @@ export default function Prontuario() {
         };
 
         console.log('Prontuário salvo:', prontuario);
-        alert('Prontuário salvo com sucesso!');
+        toast.success('Prontuário salvo com sucesso!');
     }
 
     return (
@@ -125,6 +127,7 @@ export default function Prontuario() {
                     </button>
                 </div>
             </form>
+            <ToastContainer position="top-center" autoClose={3000} />
         </div>
     );
 }

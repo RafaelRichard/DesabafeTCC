@@ -105,7 +105,7 @@ export default function AreaDoUsuario() {
                             <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
                                 <h3 className="text-xl font-semibold text-gray-700 mb-4">Meu Perfil</h3>
                                 <p className="text-gray-500">Veja e edite suas informações pessoais.</p>
-                                <Link href="/perfil">
+                                <Link href="/meu_perfil">
                                     <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
                                         Ver Perfil
                                     </button>
