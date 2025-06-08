@@ -1,6 +1,8 @@
-    'use client';
+'use client';
 
     import { useState, useEffect } from 'react';
+    import { toast, ToastContainer } from 'react-toastify';
+    import 'react-toastify/dist/ReactToastify.css';
 
     interface Profissional {
         id: number;
@@ -64,10 +66,10 @@
             try {
                 // Simulando a requisição do agendamento
                 console.log('Agendamento:', agendamento);
-                alert('Consulta agendada com sucesso!');
+                toast.success('Consulta agendada com sucesso!');
             } catch (error) {
                 console.error(error);
-                alert('Erro ao agendar a consulta.');
+                toast.error('Erro ao agendar a consulta.');
             }
         };
 
@@ -155,6 +157,7 @@
                             Confirmar Agendamento
                         </button>
                     </div>
+                    <ToastContainer position="top-center" autoClose={3000} />
                 </form>
             </div>
         );

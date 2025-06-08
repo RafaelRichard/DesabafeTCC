@@ -3,6 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 export default function PagamentoPlano() {
     const searchParams = useSearchParams();
@@ -58,13 +59,13 @@ export default function PagamentoPlano() {
 
     const iniciarPagamento = () => {
         if (!metodoPagamento) {
-            alert('Selecione um método de pagamento.');
+            toast.warn('Selecione um método de pagamento.');
             return;
         }
 
         if (metodoPagamento.startsWith('cartao')) {
             if (!cartao.nome || !cartao.numero || !cartao.validade || !cartao.cvv) {
-                alert('Preencha todos os dados do cartão.');
+                toast.warn('Preencha todos os dados do cartão.');
                 return;
             }
         }
@@ -77,7 +78,7 @@ export default function PagamentoPlano() {
             cartao: metodoPagamento.startsWith('cartao') ? cartao : null,
         });
 
-        alert('Pagamento processado com sucesso!');
+        toast.success('Pagamento processado com sucesso!');
         setStatus('pago');
     };
 
@@ -205,6 +206,7 @@ export default function PagamentoPlano() {
                         Confirmar Pagamento
                     </button>
                 </div>
+                <ToastContainer position="top-center" autoClose={3000} />
             </div>
         </div>
     );

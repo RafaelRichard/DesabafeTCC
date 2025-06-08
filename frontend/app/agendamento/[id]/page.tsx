@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 interface Profissional {
   id: number;
@@ -9,6 +11,8 @@ interface Profissional {
   crm?: string;
   crp?: string;
   especializacao?: string;
+  email?: string;
+  telefone?: string;
 }
 
 interface Usuario {
@@ -16,6 +20,7 @@ interface Usuario {
   nome: string;
   email: string;
   telefone: string;
+  cpf?: string;
 }
 
 export default function Agendamento() {
@@ -45,7 +50,7 @@ export default function Agendamento() {
         const data = await response.json();
         setUsuario(data);
       } catch (error) {
-        alert('Você precisa estar logado para acessar esta página.');
+        toast.error('Você precisa estar logado para acessar esta página.');
         router.push('/login');
       }
     };
@@ -84,7 +89,7 @@ export default function Agendamento() {
     e.preventDefault();
 
     if (!usuario || !profissional) {
-      alert('Dados insuficientes para agendamento.');
+      toast.error('Dados insuficientes para agendamento.');
       return;
     }
 
@@ -109,11 +114,11 @@ export default function Agendamento() {
       });
 
       if (!response.ok) throw new Error('Erro ao agendar consulta');
-      alert('Consulta agendada com sucesso!');
-      router.push('/');
+      toast.success('Consulta agendada com sucesso!');
+      setTimeout(() => router.push('/'), 2000);
     } catch (error) {
       console.error(error);
-      alert('Erro ao agendar a consulta.');
+      toast.error('Erro ao agendar a consulta.');
     }
   };
 
@@ -130,18 +135,25 @@ export default function Agendamento() {
       {/* Informações do Médico */}
       <div className="mb-8 bg-gray-50 p-6 rounded-lg shadow-sm">
         <h2 className="text-2xl font-semibold text-gray-800 mb-4">Informações do Médico(a)</h2>
-        <p><strong>Nome:</strong> {profissional.nome}</p>
-        {profissional.crm && <p><strong>CRM:</strong> {profissional.crm}</p>}
-        {profissional.crp && <p><strong>CRP:</strong> {profissional.crp}</p>}
-        {profissional.especializacao && <p><strong>Especialização:</strong> {profissional.especializacao}</p>}
+        <p><strong>Nome:</strong> {profissional.nome || '-'}</p>
+        <p><strong>CRM:</strong> {profissional.crm || '-'}</p>
+        {/* Exibe CRP apenas se não for psiquiatra e houver crp */}
+        {(!profissional.crm && profissional.crp) && (
+          <p><strong>CRP:</strong> {profissional.crp}</p>
+        )}
+        <p><strong>Especialização:</strong> {profissional.especializacao || '-'}</p>
+        {profissional.email && <p><strong>Email:</strong> {profissional.email}</p>}
+        {profissional.telefone && <p><strong>Telefone:</strong> {profissional.telefone}</p>}
       </div>
 
       {/* Informações do Usuário */}
       <div className="mb-8 bg-gray-50 p-6 rounded-lg shadow-sm">
         <h2 className="text-2xl font-semibold text-gray-800 mb-4">Informações do Paciente</h2>
-        <p><strong>Nome:</strong> {usuario.nome}</p>
-        <p><strong>Email:</strong> {usuario.email}</p>
-        <p><strong>Telefone:</strong> {usuario.telefone}</p>
+        <p><strong>Nome:</strong> {usuario.nome || '-'}</p>
+        <p><strong>Email:</strong> {usuario.email || '-'}</p>
+        <p><strong>Telefone:</strong> {usuario.telefone || '-'}</p>
+        {/* Se a API retornar CPF ou outros dados relevantes, exiba também: */}
+        {usuario.cpf && <p><strong>CPF:</strong> {usuario.cpf}</p>}
       </div>
 
       {/* Formulário */}
@@ -204,6 +216,7 @@ export default function Agendamento() {
           </button>
         </div>
       </form>
+      <ToastContainer position="top-center" autoClose={3000} />
     </div>
   );
 }

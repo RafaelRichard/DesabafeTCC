@@ -21,7 +21,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from app_projeto.views import cadastrar_usuario, get_csrf_token, login_usuario, rota_protegida, logout
 from app_projeto.views import listar_usuarios , editar_usuario, excluir_usuario, listar_psiquiatras, listar_psiquiatras_id
 from app_projeto.views import google_login_view, MyTokenObtainPairView, usuario_autenticado
-from app_projeto.views import listar_agendamentos, criar_agendamento, atualizar_agendamento
+from app_projeto.views import listar_agendamentos, criar_agendamento, atualizar_agendamento, enderecos_usuario
+from app_projeto.views import detalhar_usuario
 
 
 urlpatterns = [
@@ -57,5 +58,9 @@ urlpatterns = [
     path('api/agendamentos/', listar_agendamentos, name='listar_agendamentos'),
     path('api/agendamentos/criar/', criar_agendamento, name='criar_agendamento'),
     path('api/agendamentos/<int:id>/atualizar/', atualizar_agendamento, name='atualizar_agendamento'),
+
+    path('api/enderecos_usuario/<int:usuario_id>/', enderecos_usuario, name='enderecos_usuario'),
+
+    path('api/perfil/<int:id>/', detalhar_usuario, name='detalhar_usuario'),
 
 ]

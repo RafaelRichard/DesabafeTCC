@@ -161,10 +161,10 @@ const ClientOnlyHeader = () => {
               </button>
               {dropdownOpen && (
                 <div className="absolute top-full mt-2 bg-white shadow-md rounded-lg p-2 z-50">
-                  <Link href="/psicologia" className="block px-4 py-2 text-sm hover:bg-purple-50 rounded">
+                  <Link href="/psicologia" className="block px-4 py-2 text-sm hover:bg-purple-50 rounded" onClick={() => setDropdownOpen(false)}>
                     Psicólogos
                   </Link>
-                  <Link href="/psiquiatria" className="block px-4 py-2 text-sm hover:bg-purple-50 rounded">
+                  <Link href="/psiquiatria" className="block px-4 py-2 text-sm hover:bg-purple-50 rounded" onClick={() => setDropdownOpen(false)}>
                     Psiquiatras
                   </Link>
                 </div>
