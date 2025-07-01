@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { getBackendUrl } from '../../utils/backend';
 
 interface Profissional {
   id: number;
@@ -13,6 +14,7 @@ interface Profissional {
   especializacao?: string;
   email?: string;
   telefone?: string;
+  valor_consulta?: number; // Adicionado campo para valor da consulta
 }
 
 interface Usuario {
@@ -40,7 +42,7 @@ export default function Agendamento() {
   useEffect(() => {
     const verificarLogin = async () => {
       try {
-        const response = await fetch('http://localhost:8000/usuario_jwt/', {
+        const response = await fetch(`${getBackendUrl()}/usuario_jwt/`, {
           method: 'GET',
           credentials: 'include',
         });
@@ -62,12 +64,25 @@ export default function Agendamento() {
   useEffect(() => {
     async function fetchProfissional() {
       if (!id) return;
+      setLoading(true);
       try {
-        const response = await fetch(`http://127.0.0.1:8000/api/psiquiatras/${id}/`);
-        if (!response.ok) throw new Error('Erro ao buscar profissional');
-        const data = await response.json();
-        setProfissional(data);
+        // Tenta buscar como psiquiatra
+        let response = await fetch(`${getBackendUrl()}/api/psiquiatras/${id}/`);
+        if (response.ok) {
+          const data = await response.json();
+          setProfissional(data);
+        } else {
+          // Se não encontrar, tenta buscar como psicólogo
+          response = await fetch(`${getBackendUrl()}/api/psicologos/${id}/`);
+          if (response.ok) {
+            const data = await response.json();
+            setProfissional(data);
+          } else {
+            setProfissional(null);
+          }
+        }
       } catch (error) {
+        setProfissional(null);
         console.error(error);
       } finally {
         setLoading(false);
@@ -93,18 +108,18 @@ export default function Agendamento() {
       return;
     }
 
+    // O backend espera: usuario, psiquiatra, data_hora, status, observacoes, link_consulta
     const agendamento = {
-      usuario_id: usuario.id,
-      medico_id: profissional.id,
+      usuario: usuario.id, // campo correto para paciente
+      psiquiatra: profissional.id, // campo correto para profissional (psiquiatra ou psicologo)
       data_hora: dataHora,
       status,
-      link_consulta: linkConsulta,
       observacoes,
-      data_criacao: new Date().toISOString(),
+      link_consulta: linkConsulta,
     };
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/agendamentos/', {
+      const response = await fetch(`${getBackendUrl()}/api/agendamentos/criar/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -122,6 +137,50 @@ export default function Agendamento() {
     }
   };
 
+  // Função para iniciar o pagamento Mercado Pago
+  const handlePagamento = async () => {
+    if (!usuario || !profissional) {
+      toast.error('Dados insuficientes para pagamento.');
+      return;
+    }
+    const valorConsulta = profissional.valor_consulta ? Number(profissional.valor_consulta) : 200;
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/mercadopago/pagamento/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome_produto: `Consulta com ${profissional.nome}`,
+          preco: valorConsulta,
+          quantidade: 1,
+          profissional_id: profissional.id,
+        }),
+      });
+      const data = await res.json();
+      if (data.checkout_url) {
+        // Salva o agendamento no backend antes de redirecionar para o pagamento
+        const agendamento = {
+          usuario: usuario.id,
+          psiquiatra: profissional.id,
+          data_hora: dataHora,
+          status: 'pendente',
+          observacoes,
+          link_consulta: linkConsulta,
+        };
+        await fetch(`${getBackendUrl()}/api/agendamentos/criar/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(agendamento),
+        });
+        window.location.href = data.checkout_url;
+      } else {
+        toast.error(data.error || 'Erro ao criar pagamento Mercado Pago.');
+      }
+    } catch (err) {
+      toast.error('Erro ao conectar com o servidor de pagamento.');
+    }
+  };
+
   if (loading) return <p className="text-center mt-10">Carregando profissional...</p>;
   if (!profissional) return <p className="text-center mt-10 text-red-500">Profissional não encontrado.</p>;
   if (!usuario) return null; // Espera carregar dados do usuário
@@ -136,9 +195,12 @@ export default function Agendamento() {
       <div className="mb-8 bg-gray-50 p-6 rounded-lg shadow-sm">
         <h2 className="text-2xl font-semibold text-gray-800 mb-4">Informações do Médico(a)</h2>
         <p><strong>Nome:</strong> {profissional.nome || '-'}</p>
-        <p><strong>CRM:</strong> {profissional.crm || '-'}</p>
-        {/* Exibe CRP apenas se não for psiquiatra e houver crp */}
-        {(!profissional.crm && profissional.crp) && (
+        {/* Exibe CRM apenas se houver */}
+        {profissional.crm && (
+          <p><strong>CRM:</strong> {profissional.crm}</p>
+        )}
+        {/* Exibe CRP apenas se houver */}
+        {profissional.crp && (
           <p><strong>CRP:</strong> {profissional.crp}</p>
         )}
         <p><strong>Especialização:</strong> {profissional.especializacao || '-'}</p>
@@ -209,10 +271,17 @@ export default function Agendamento() {
         {/* Botão */}
         <div className="flex justify-center mt-6">
           <button
+            type="button"
+            onClick={handlePagamento}
+            className="bg-green-600 text-white px-10 py-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-600 transition duration-300 mr-4"
+          >
+            Agendar e Pagar Consulta
+          </button>
+          <button
             type="submit"
             className="bg-indigo-600 text-white px-10 py-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-600 transition duration-300"
           >
-            Confirmar Agendamento
+            Confirmar Agendamento (sem pagamento)
           </button>
         </div>
       </form>

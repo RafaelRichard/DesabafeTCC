@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -27,6 +27,7 @@ interface Usuario {
     crm?: string;
     crp?: string;
     enderecos?: Endereco[];
+    foto?: string;
 }
 
 export default function MeuPerfil() {
@@ -36,6 +37,8 @@ export default function MeuPerfil() {
     const [loading, setLoading] = useState(true);
     const [erro, setErro] = useState('');
     const [editando, setEditando] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
         const fetchPerfil = async () => {
@@ -190,6 +193,32 @@ export default function MeuPerfil() {
         }
     };
 
+    // Função para upload de nova foto
+    const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!usuario || !e.target.files || e.target.files.length === 0) return;
+        const file = e.target.files[0];
+        const formData = new FormData();
+        formData.append('foto', file);
+        setUploading(true);
+        try {
+            const res = await fetch(`http://localhost:8000/api/users/${usuario.id}/`, {
+                method: 'PUT',
+                credentials: 'include',
+                body: formData,
+            });
+            if (!res.ok) throw new Error('Erro ao atualizar foto');
+            // Atualiza o perfil após upload
+            const res2 = await fetch(`http://localhost:8000/api/users/${usuario.id}/`, { credentials: 'include' });
+            const data = await res2.json();
+            setUsuario(data);
+            toast.success('Foto atualizada com sucesso!');
+        } catch (err) {
+            toast.error('Erro ao atualizar foto.');
+        } finally {
+            setUploading(false);
+        }
+    };
+
     if (loading) return <div className="p-8 text-center">Carregando...</div>;
     if (erro) return <div className="p-8 text-center text-red-600">{erro}</div>;
     if (!usuario) return <div className="p-8 text-center">Usuário não encontrado.</div>;
@@ -241,6 +270,50 @@ export default function MeuPerfil() {
     return (
         <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-2xl p-10 mt-12 border border-gray-200">
             <h1 className="text-4xl font-extrabold text-center text-indigo-700 mb-10 tracking-tight">Meu Perfil</h1>
+
+            {usuario?.foto ? (
+                <div className="flex justify-center mb-6 relative group">
+                    <img
+                        src={`http://localhost:8000${usuario.foto}`}
+                        alt="Foto de perfil"
+                        className="w-32 h-32 rounded-full object-cover border-4 border-indigo-200 shadow cursor-pointer"
+                        onClick={() => fileInputRef.current?.click()}
+                    />
+                    <input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        style={{ display: 'none' }}
+                        onChange={handleFotoChange}
+                        disabled={uploading}
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        onClick={() => fileInputRef.current?.click()}>
+                        <span className="text-white font-bold">{uploading ? 'Enviando...' : 'Editar'}</span>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex justify-center mb-6 relative group">
+                    <img
+                        src="/img/logo.png"
+                        alt="Foto padrão"
+                        className="w-32 h-32 rounded-full object-cover border-4 border-indigo-200 shadow cursor-pointer"
+                        onClick={() => fileInputRef.current?.click()}
+                    />
+                    <input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        style={{ display: 'none' }}
+                        onChange={handleFotoChange}
+                        disabled={uploading}
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        onClick={() => fileInputRef.current?.click()}>
+                        <span className="text-white font-bold">{uploading ? 'Enviando...' : 'Editar'}</span>
+                    </div>
+                </div>
+            )}
 
             <div className="flex flex-col md:flex-row md:gap-10 gap-6 mb-10">
                 {/* Dados Pessoais */}

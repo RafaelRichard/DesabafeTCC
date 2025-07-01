@@ -69,6 +69,148 @@
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-gray-400;
   }
+
+  /* Ajustes globais para botões do React Big Calendar */
+  .rbc-btn, .rbc-toolbar button {
+    background: #f1f5f9; /* bg-gray-100 */
+    color: #334155; /* text-slate-700 */
+    border: 1px solid #e5e7eb; /* border-gray-200 */
+    border-radius: 0.5rem; /* rounded-lg */
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    font-family: inherit;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 2px 0 rgba(0,0,0,0.03);
+    outline: none;
+    cursor: pointer;
+    margin: 0 0.25rem;
+  }
+  .rbc-btn:focus, .rbc-toolbar button:focus {
+    border-color: #6366f1; /* indigo-500 */
+    box-shadow: 0 0 0 2px #6366f133;
+  }
+  .rbc-toolbar button.rbc-active, .rbc-toolbar button:active {
+    background: #6366f1; /* indigo-500 */
+    color: #fff;
+    border-color: #6366f1;
+  }
+  .rbc-toolbar button:hover {
+    background: #e0e7ff; /* indigo-100 */
+    color: #3730a3; /* indigo-800 */
+  }
+  .rbc-toolbar label {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #334155;
+  }
+  .rbc-toolbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  @media (max-width: 600px) {
+    .rbc-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.25rem;
+    }
+    .rbc-toolbar button, .rbc-btn {
+      width: 100%;
+      margin: 0.125rem 0;
+    }
+  }
+
+  /* Estilos avançados para o calendário futurista do TCC */
+  .calendar-futuristic .rbc-toolbar {
+    background: rgba(243,232,255,0.85);
+    border-radius: 2rem;
+    box-shadow: 0 2px 16px 0 rgba(99,102,241,0.10);
+    padding: 1.5rem 2rem 1rem 2rem;
+    margin-bottom: 2.5rem;
+    backdrop-filter: blur(4px);
+  }
+  .calendar-futuristic .rbc-toolbar button {
+    background: linear-gradient(90deg, #6366f1 0%, #818cf8 100%);
+    color: #fff;
+    border: none;
+    border-radius: 1rem;
+    font-weight: 800;
+    font-size: 1.05rem;
+    margin: 0 0.4rem;
+    box-shadow: 0 2px 8px 0 rgba(99,102,241,0.13);
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+  }
+  .calendar-futuristic .rbc-toolbar button:hover, .calendar-futuristic .rbc-toolbar button:focus {
+    background: linear-gradient(90deg, #818cf8 0%, #6366f1 100%);
+    color: #fff;
+    box-shadow: 0 4px 16px 0 rgba(99,102,241,0.18);
+  }
+  .calendar-futuristic .rbc-toolbar label {
+    color: #3730a3;
+    font-size: 1.25rem;
+    font-weight: 900;
+    letter-spacing: 0.01em;
+    text-shadow: 0 1px 8px rgba(99,102,241,0.10);
+  }
+  .calendar-futuristic .rbc-month-view, .calendar-futuristic .rbc-time-view, .calendar-futuristic .rbc-agenda-view {
+    background: transparent;
+  }
+  .calendar-futuristic .rbc-month-row {
+    border-radius: 1.5rem;
+  }
+  .calendar-futuristic .rbc-date-cell.rbc-now, .calendar-futuristic .rbc-today {
+    background: linear-gradient(90deg, #e0e7ff 0%, #f3e8ff 100%);
+    border-radius: 1rem;
+    box-shadow: 0 0 0 2px #6366f1cc;
+  }
+  .calendar-futuristic .rbc-selected-cell {
+    background: #6366f1 !important;
+    color: #fff !important;
+    border-radius: 1rem;
+  }
+  .calendar-futuristic .rbc-event {
+    border: none !important;
+    filter: drop-shadow(0 2px 8px #6366f155);
+  }
+  .calendar-futuristic .rbc-agenda-table th, .calendar-futuristic .rbc-agenda-table td {
+    background: rgba(255,255,255,0.7);
+    border-radius: 0.5rem;
+  }
+  .calendar-futuristic .rbc-header {
+    background: transparent;
+    color: #6366f1;
+    font-weight: 700;
+    font-size: 1.08rem;
+    letter-spacing: 0.01em;
+  }
+  .calendar-futuristic .rbc-row-segment {
+    margin-bottom: 0.2rem;
+  }
+  .calendar-futuristic .rbc-time-header-content, .calendar-futuristic .rbc-timeslot-group {
+    background: transparent;
+  }
+  .calendar-futuristic .rbc-time-content {
+    border-radius: 1rem;
+  }
+  .calendar-futuristic .rbc-time-slot {
+    border-radius: 0.5rem;
+  }
+  .calendar-futuristic .rbc-agenda-date-cell {
+    font-weight: 700;
+    color: #6366f1;
+  }
+  .calendar-futuristic .rbc-agenda-time-cell {
+    color: #16a34a;
+  }
+  .calendar-futuristic .rbc-agenda-event-cell {
+    font-weight: 600;
+  }
+  @media (max-width: 700px) {
+    .calendar-futuristic .rbc-toolbar {
+      flex-direction: column;
+      gap: 0.7rem;
+      padding: 1rem 0.5rem 0.5rem 0.5rem;
+    }
+  }
 }
 
 /* Animações principais */

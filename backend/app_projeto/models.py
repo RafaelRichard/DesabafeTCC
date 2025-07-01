@@ -1,6 +1,14 @@
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
+import uuid
+import os
+
+
+def user_foto_upload_path(instance, filename):
+    ext = filename.split('.')[-1]
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    return os.path.join('usuarios_fotos', filename)
 
 
 class Usuario(models.Model):
@@ -24,6 +32,13 @@ class Usuario(models.Model):
     crm = models.CharField(max_length=20, blank=True, null=True)  # Apenas para psiquiatras
     crp = models.CharField(max_length=20, blank=True, null=True)  # Apenas para psicólogos
     especialidade = models.CharField(max_length=50, blank=True, null=True)  # Campo para especialidade, agora opcional
+    valor_consulta = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True)  # Valor da consulta
+    foto = models.ImageField(upload_to=user_foto_upload_path, blank=True, null=True)  # Foto do profissional
+    # stripe_email = models.EmailField(blank=True, null=True, help_text='E-mail da conta Stripe do profissional')
+    # stripe_account_id = models.CharField(max_length=255, blank=True, null=True, help_text='ID da conta Stripe Connect')
+    # Mercado Pago
+    mp_user_id = models.CharField(max_length=255, blank=True, null=True, help_text='ID da conta Mercado Pago Connect')
+    mp_access_token = models.CharField(max_length=255, blank=True, null=True, help_text='Access Token Mercado Pago')
 
     def clean(self):
         # Validações personalizadas
@@ -46,7 +61,8 @@ class Agendamento(models.Model):
     ]
 
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='agendamentos_paciente')
-    psiquiatra = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='agendamentos_psiquiatra')
+    psiquiatra = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='agendamentos_psiquiatra', blank=True, null=True)
+    psicologo = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='agendamentos_psicologo', blank=True, null=True)  # NOVO CAMPO
     data_hora = models.DateTimeField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pendente')
     link_consulta = models.URLField(max_length=255, blank=True, null=True)
@@ -54,7 +70,7 @@ class Agendamento(models.Model):
     data_criacao = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.usuario.nome} com {self.psiquiatra.nome} - {self.data_hora}"
+        return f"{self.usuario.nome} com {self.psiquiatra.nome if self.psiquiatra else ''}{' / ' + self.psicologo.nome if self.psicologo else ''} - {self.data_hora}"
 
 
 class AgendamentoHistorico(models.Model):

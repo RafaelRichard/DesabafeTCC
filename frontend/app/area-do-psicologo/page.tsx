@@ -16,6 +16,7 @@ export default function AreaPsicologo() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [role, setRole] = useState('');
     const [userName, setUserName] = useState('');
+    const [foto, setFoto] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
@@ -37,6 +38,7 @@ export default function AreaPsicologo() {
                     setIsLoggedIn(true);
                     setRole(data.role);
                     setUserName(data.email);
+                    setFoto(data.foto || null);
                 } else {
                     console.log('Usuário não é Psicólogo, redirecionando');
                     router.push('/login');
@@ -67,14 +69,27 @@ export default function AreaPsicologo() {
     return (
         <div className="pt-16 bg-gray-50 min-h-screen flex flex-col lg:flex-row">
             {/* Sidebar */}
-            <div className="flex flex-col w-full lg:w-72 bg-indigo-800 text-white h-full p-6 lg:h-auto shadow-lg">
+            <div className="flex flex-col w-full lg:w-72 bg-indigo-800 text-white h-full p-6 lg:h-auto shadow-lg items-center">
+                {foto ? (
+                    <img
+                        src={`http://localhost:8000${foto}`}
+                        alt="Foto de perfil"
+                        className="w-24 h-24 rounded-full object-cover border-4 border-white mb-4 shadow"
+                    />
+                ) : (
+                    <img
+                        src="/img/logo.png"
+                        alt="Foto padrão"
+                        className="w-24 h-24 rounded-full object-cover border-4 border-white mb-4 shadow"
+                    />
+                )}
                 <h2 className="text-2xl font-semibold mb-8 text-center lg:text-left">Área do Psicólogo</h2>
                 <nav className="flex flex-col space-y-4">
-                    <Link href="/area-do-psicologo/perfil" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
+                    <Link href="/meu_perfil_psicologo" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
                         <FiUser size={20} />
                         <span>Meu Perfil</span>
                     </Link>
-                    <Link href="/area-do-psicologo/consultas" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
+                    <Link href="/consultas_psicologos" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
                         <FiClipboard size={20} />
                         <span>Minhas Consultas</span>
                     </Link>
@@ -108,7 +123,7 @@ export default function AreaPsicologo() {
                             <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
                                 <h3 className="text-xl font-semibold text-gray-700 mb-4">Meu Perfil</h3>
                                 <p className="text-gray-500">Veja e edite suas informações pessoais.</p>
-                                <Link href="/area-do-psicologo/perfil">
+                                <Link href="/meu_perfil_psicologo">
                                     <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
                                         Ver Perfil
                                     </button>
@@ -117,7 +132,7 @@ export default function AreaPsicologo() {
                             <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
                                 <h3 className="text-xl font-semibold text-gray-700 mb-4">Minhas Consultas</h3>
                                 <p className="text-gray-500">Visualize e gerencie suas consultas.</p>
-                                <Link href="/area-do-psicologo/consultas">
+                                <Link href="/consultas_psicologos">
                                     <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
                                         Ver Consultas
                                     </button>

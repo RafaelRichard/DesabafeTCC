@@ -22,10 +22,33 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-zv4!s&j9bpx@rjq=l$*wcmybts&h7#_3sgb(jd07!aa@1$0tk0'
 
+# Remover duplicidade de SECRET_KEY e padronizar uso
+# JWT settings para SimpleJWT
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=240),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,  # Usa o mesmo SECRET_KEY do Django
+    'VERIFYING_KEY': None,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+}
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '012f-181-213-251-83.ngrok-free.app',  # altera toda vez que gerar um novo túnel ngrok
+]
 
 
 # Application definition
@@ -46,14 +69,25 @@ INSTALLED_APPS = [
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
+    "https://012f-181-213-251-83.ngrok-free.app",  # Altere para o seu domínio ngrok
 ]
 
+# CORS CONFIGURAÇÃO CORRETA
+# Eu deixo apenas UMA definição de CORS_ALLOWED_ORIGINS, incluindo localhost e ngrok
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "https://012f-181-213-251-83.ngrok-free.app",  # Altere para o seu domínio ngrok
+]
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    'content-type',
+    'x-csrftoken',
+    'Authorization',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True 
-CORS_ALLOW_CREDENTIALS = True
+
+
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_HEADER_NAME = "X-CSRFToken"  
 CSRF_COOKIE_HTTPONLY = False  
@@ -69,6 +103,7 @@ SITE_ID = 1
 LOGIN_REDIRECT_URL = '/dashboard/'
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -76,7 +111,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+
     #'app_projeto.middlewares.JWTAuthenticationMiddleware',
     # 'app_projeto.middleware.TokenAuthMiddleware',  # Comente temporariamente
 ]
@@ -99,22 +134,6 @@ AUTHENTICATION_BACKENDS = [
     ]
     
 
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000', 
-]
-
-CORS_ALLOW_CREDENTIALS = True
-
-CORS_ALLOW_HEADERS = [
-    'content-type',
-    'x-csrftoken',
-    'Authorization',
-
-]
-
-SECRET_KEY = "8Xb3x6HUQd"  # Mantenha isso seguro
-JWT_EXPIRATION_TIME = datetime.timedelta(minutes=30)
-JWT_ALGORITHM = "HS256"
 
 ROOT_URLCONF = 'back_projeto.urls'
 
@@ -189,7 +208,16 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Configuração de arquivos de mídia (fotos de perfil, etc)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'usuarios_fotos'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+MERCADOPAGO_CLIENT_ID = '5538933996760008'
+MERCADOPAGO_CLIENT_SECRET = 'oVnfqCgl52VyPAz2B1Rv4MJSsQeMFXXB'
+MERCADOPAGO_REDIRECT_URI = 'https://012f-181-213-251-83.ngrok-free.app/api/mercadopago/oauth/callback/' # altera toda vez que gerar um novo túnel ngrok
