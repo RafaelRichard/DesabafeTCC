@@ -9,6 +9,8 @@ interface Psiquiatra {
   email: string;
   crm: string;
   especialidade?: string;
+  foto?: string; // Adiciona campo foto
+  valor_consulta?: number;
 }
 
 export default function Psiquiatria() {
@@ -80,7 +82,7 @@ export default function Psiquiatria() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-white py-20">
-      <div className="max-w-5xl mx-auto px-6">
+      <div className="max-w-7xl mx-auto px-6">
         <h1 className="text-5xl font-bold text-center text-indigo-700 mb-6">
           Psiquiatria Online
         </h1>
@@ -98,24 +100,28 @@ export default function Psiquiatria() {
           ) : psiquiatras.length === 0 ? (
             <div className="text-center text-gray-500">Nenhum psiquiatra encontrado.</div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-8">
               {psiquiatras.map((psiquiatra) => (
                 <div
                   key={psiquiatra.id}
-                  className="bg-gray-50 rounded-xl shadow-md hover:shadow-lg transition duration-300 p-6 flex flex-col items-center text-center"
+                  className="bg-gray-50 rounded-xl shadow-md hover:shadow-lg transition duration-300 p-6 flex flex-col items-center text-center h-full justify-between"
+                  style={{ minHeight: 340 }}
                 >
                   <img
-                    src="/img/logo.png"
+                    src={psiquiatra.foto ? `http://localhost:8000/media/${psiquiatra.foto.replace(/^\/?media\//, '')}` : "/img/logo.png"}
                     alt={`Foto de ${psiquiatra.nome}`}
                     className="w-24 h-24 rounded-full object-cover mb-4 border-2 border-indigo-100"
                   />
                   <h3 className="text-xl font-semibold text-indigo-600">{psiquiatra.nome}</h3>
                   <p className="text-gray-600">{psiquiatra.especialidade || 'Especialista em saúde mental'}</p>
-                  <p className="text-gray-500 text-sm mt-1">CRM: {psiquiatra.crm || 'Não informado'}</p>
-
+                  <p className="text-gray-500 text-md mt-1">CRM: {psiquiatra.crm || 'Não informado'}</p>
+                  <p className="text-gray-500 text-sm mt-1">Valor da consulta:</p>
+                  <p className="text-indigo-700 font-bold text-lg mt-2">{psiquiatra.valor_consulta ? `R$ ${Number(psiquiatra.valor_consulta).toFixed(2)}` : 'Valor não informado'}</p>
+                  <div className="flex-grow" />
                   <button
                     onClick={() => handleAgendarConsulta(psiquiatra.id)}
-                    className="mt-6 bg-indigo-600 text-white px-5 py-2 rounded-full hover:bg-indigo-700 transition duration-300 text-sm font-medium"
+                    className="mt-6 bg-indigo-600 text-white px-5 py-2 rounded-full hover:bg-indigo-700 transition duration-300 text-sm font-medium w-full"
+                    style={{ marginTop: 'auto' }}
                   >
                     Agendar Consulta
                   </button>

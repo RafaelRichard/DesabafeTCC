@@ -18,15 +18,20 @@ from django.contrib import admin
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from app_projeto.views import cadastrar_usuario, get_csrf_token, login_usuario, rota_protegida, logout
-from app_projeto.views import listar_usuarios , editar_usuario, excluir_usuario, listar_psiquiatras, listar_psiquiatras_id
-from app_projeto.views import google_login_view, MyTokenObtainPairView, usuario_autenticado
-from app_projeto.views import listar_agendamentos, criar_agendamento, atualizar_agendamento, enderecos_usuario
-from app_projeto.views import detalhar_usuario
-
+from app_projeto.views import (
+    cadastrar_usuario, get_csrf_token, login_usuario, rota_protegida, logout,
+    listar_usuarios, editar_usuario, excluir_usuario, listar_psiquiatras, listar_psiquiatras_id,
+    google_login_view, MyTokenObtainPairView, usuario_autenticado,
+    listar_agendamentos, criar_agendamento, atualizar_agendamento, enderecos_usuario,
+    detalhar_usuario, listar_psicologos,
+    iniciar_oauth_mercadopago, oauth_callback_mercadopago, criar_pagamento_mercadopago,
+    listar_agendamentos_profissional, listar_agendamentos_paciente, deletar_agendamento,
+    detalhar_agendamento
+)
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
-    
     path('admin/', admin.site.urls),
     path('cadastrar_usuario/', cadastrar_usuario, name='cadastrar_usuario'),
     path('login_usuario/', login_usuario, name='login_usuario'),
@@ -42,25 +47,31 @@ urlpatterns = [
     path('api/users/', listar_usuarios, name='listar_usuarios'),
     path('api/users/<int:id>/', editar_usuario, name='editar_usuario'),
     path('api/users/<int:id>/delete/', excluir_usuario, name='excluir_usuario'),
-    
-    #Recuperar senha
-    # path('recuperar-senha/', RecuperarSenhaAPIView.as_view(), name='recuperar-senha'),
-    # path('redefinir-senha/<uidb64>/<token>/', RedefinirSenhaAPIView.as_view(), name='redefinir-senha'),
 
-    
-    
     # listagem de psiquiatras
     path('api/psiquiatras/', listar_psiquiatras, name='listar_psiquiatras'),
     path('api/psiquiatras/<int:id>/', listar_psiquiatras_id, name='listar_psiquiatras_id'),
+    # listagem de psicologos
+    path('api/psicologos/', listar_psicologos, name='listar_psicologos'),
+    path('api/psicologos/<int:id>/', listar_psicologos, name='listar_psicologos_id'),
 
-    #AGENDAMENTO
-
+    # AGENDAMENTO
     path('api/agendamentos/', listar_agendamentos, name='listar_agendamentos'),
     path('api/agendamentos/criar/', criar_agendamento, name='criar_agendamento'),
     path('api/agendamentos/<int:id>/atualizar/', atualizar_agendamento, name='atualizar_agendamento'),
+    path('api/agendamentos/<int:id>/deletar/', deletar_agendamento, name='deletar_agendamento'),
+    path('api/agendamentos_profissional/', listar_agendamentos_profissional, name='listar_agendamentos_profissional'),
+    path('api/agendamentos_paciente/', listar_agendamentos_paciente, name='listar_agendamentos_paciente'),
+    path('api/agendamentos/<int:id>/', detalhar_agendamento, name='detalhar_agendamento'),
 
     path('api/enderecos_usuario/<int:usuario_id>/', enderecos_usuario, name='enderecos_usuario'),
 
     path('api/perfil/<int:id>/', detalhar_usuario, name='detalhar_usuario'),
 
+    # MERCADO PAGO
+    path('api/mercadopago/oauth/', iniciar_oauth_mercadopago, name='iniciar_oauth_mercadopago'),
+    path('api/mercadopago/oauth/callback/', oauth_callback_mercadopago, name='oauth_callback_mercadopago'),
+    path('api/mercadopago/pagamento/', criar_pagamento_mercadopago, name='criar_pagamento_mercadopago'),
 ]
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

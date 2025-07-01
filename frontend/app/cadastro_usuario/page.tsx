@@ -23,7 +23,12 @@ export default function CadastroUsuario() {
         estado: '',
         cep: '',
         tipo_endereco: 'residencial',
+        // Campos extras para profissionais
+        especialidade: '',
+        valor_consulta: '',
+        foto: '', // será ignorado, usaremos fotoFile
     });
+    const [fotoFile, setFotoFile] = useState<File | null>(null); // Novo estado para arquivo
     const [message, setMessage] = useState('');
     const router = useRouter();
 
@@ -50,39 +55,25 @@ export default function CadastroUsuario() {
         e.preventDefault();
         setMessage('');
 
-        // Validações (que você já tem)
+        const form = new FormData();
+        Object.entries(formData).forEach(([key, value]) => {
+            if (key !== 'foto') form.append(key, value);
+        });
+        if (fotoFile) form.append('foto', fotoFile);
 
         try {
-            const csrfToken = getCsrfToken(); // Obtém o token CSRF do cookie
-            if (!csrfToken) {
-                setMessage('Token CSRF não encontrado.');
-                return;
-            }
-
             const response = await fetch('http://localhost:8000/cadastrar_usuario/', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken,  // Envia o token CSRF
-                },
-                body: JSON.stringify(formData),
-                credentials: 'include',
+                body: form,
             });
-
             const data = await response.json();
-
             if (response.ok) {
-                // Armazenando o token JWT, que o backend agora retorna
-                if (data.token) {
-                    localStorage.setItem('auth_token', data.token);
-                    setMessage('Cadastro realizado com sucesso!');
-                    router.push('/login');  // Redireciona para a página de login
-                }
+                setMessage('Cadastro realizado com sucesso!');
+                router.push('/login');
             } else {
                 setMessage(data.error || 'Erro ao realizar cadastro.');
             }
         } catch (error) {
-            console.error('Erro:', error);
             setMessage('Erro ao conectar com o servidor.');
         }
     };
@@ -352,6 +343,49 @@ export default function CadastroUsuario() {
                             <option value="consultorio">Consultório</option>
                         </select>
                     </div>
+
+                    {/* Campos extras para profissionais */}
+                    {(formData.role === 'Psiquiatra' || formData.role === 'Psicologo') && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Especialidade</label>
+                          <input
+                            type="text"
+                            name="especialidade"
+                            value={formData.especialidade}
+                            onChange={handleChange}
+                            required
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Valor da Consulta (R$)</label>
+                          <input
+                            type="number"
+                            name="valor_consulta"
+                            value={formData.valor_consulta}
+                            onChange={handleChange}
+                            required
+                            min="0"
+                            step="0.01"
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Foto de Perfil</label>
+                          <input
+                            type="file"
+                            name="foto"
+                            accept="image/*"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) setFotoFile(file);
+                            }}
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          />
+                        </div>
+                      </>
+                    )}
 
                     <button
                         type="submit"

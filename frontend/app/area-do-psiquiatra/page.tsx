@@ -17,6 +17,7 @@ export default function AreaPsiquiatra() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [role, setRole] = useState('');
     const [userName, setUserName] = useState('');
+    const [foto, setFoto] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
@@ -38,6 +39,7 @@ export default function AreaPsiquiatra() {
                     setIsLoggedIn(true);
                     setRole(data.role);
                     setUserName(data.email);
+                    setFoto(data.foto || null);
                 } else {
                     console.log('Usuário não é Psiquiatra, redirecionando');
                     router.push('/login');
@@ -68,14 +70,27 @@ export default function AreaPsiquiatra() {
     return (
         <div className="pt-16 bg-gray-50 min-h-screen flex flex-col lg:flex-row">
             {/* Sidebar */}
-            <div className="flex flex-col w-full lg:w-72 bg-indigo-800 text-white h-full p-6 lg:h-auto shadow-lg">
+            <div className="flex flex-col w-full lg:w-72 bg-indigo-800 text-white h-full p-6 lg:h-auto shadow-lg items-center">
+                {foto ? (
+                    <img
+                        src={`http://localhost:8000${foto}`}
+                        alt="Foto de perfil"
+                        className="w-24 h-24 rounded-full object-cover border-4 border-white mb-4 shadow"
+                    />
+                ) : (
+                    <img
+                        src="/img/logo.png"
+                        alt="Foto padrão"
+                        className="w-24 h-24 rounded-full object-cover border-4 border-white mb-4 shadow"
+                    />
+                )}
                 <h2 className="text-2xl font-semibold mb-8 text-center lg:text-left">Área do Psiquiatra</h2>
                 <nav className="flex flex-col space-y-4">
-                    <Link href="/psiquiatra/perfil" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
+                    <Link href="/meu_perfil_psiquiatra" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
                         <FiUser size={20} />
                         <span>Meu Perfil</span>
                     </Link>
-                    <Link href="/psiquiatra/consultas" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
+                    <Link href="/consultas_psiquiatras" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
                         <FiClipboard size={20} />
                         <span>Minhas Consultas</span>
                     </Link>
@@ -109,7 +124,7 @@ export default function AreaPsiquiatra() {
                             <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
                                 <h3 className="text-xl font-semibold text-gray-700 mb-4">Meu Perfil</h3>
                                 <p className="text-gray-500">Veja e edite suas informações pessoais.</p>
-                                <Link href="/psiquiatra/perfil">
+                                <Link href="/meu_perfil_psiquiatra">
                                     <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
                                         Ver Perfil
                                     </button>
@@ -118,7 +133,7 @@ export default function AreaPsiquiatra() {
                             <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
                                 <h3 className="text-xl font-semibold text-gray-700 mb-4">Minhas Consultas</h3>
                                 <p className="text-gray-500">Visualize e gerencie suas consultas.</p>
-                                <Link href="/psiquiatra/consultas">
+                                <Link href="/consultas_psiquiatras">
                                     <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
                                         Ver Consultas
                                     </button>

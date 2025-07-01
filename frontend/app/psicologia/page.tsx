@@ -1,88 +1,121 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+
+interface Psicologo {
+  id: number;
+  nome: string;
+  email?: string;
+  crp?: string;
+  especialidade?: string;
+  valor_consulta?: number;
+}
 
 export default function Psicologia() {
   const router = useRouter();
+  const [psicologos, setPsicologos] = useState<Psicologo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoadingLogin, setIsLoadingLogin] = useState(true);
 
-  const handleAgendarSessao = (medicoId: number) => {
-    router.push(`/agendamento?medico_id=${medicoId}`);
+  useEffect(() => {
+    const fetchPsicologos = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/psicologos/', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (!response.ok) throw new Error('Erro ao buscar psicólogos');
+        const data = await response.json();
+        setPsicologos(data);
+      } catch (error) {
+        console.error('Erro ao buscar psicólogos:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPsicologos();
+  }, []);
+
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/usuario_jwt/', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const userData = await res.json();
+          setIsLoggedIn(!!userData.email);
+        } else {
+          setIsLoggedIn(false);
+        }
+      } catch {
+        setIsLoggedIn(false);
+      } finally {
+        setIsLoadingLogin(false);
+      }
+    };
+    checkLoginStatus();
+  }, []);
+
+  const handleAgendarSessao = (psicologoId: number) => {
+    if (isLoadingLogin) {
+      alert('Verificando login, aguarde...');
+      return;
+    }
+    if (!isLoggedIn) {
+      alert('Você precisa estar logado para agendar uma consulta.');
+      router.push('/login');
+      return;
+    }
+    router.push(`/agendamento/${psicologoId}`);
   };
 
   return (
-    <div className="pt-20 bg-gray-50 min-h-screen flex justify-center">
-      <div className="container mx-auto px-6 py-8">
-        <h1 className="text-4xl font-extrabold text-center text-indigo-600 mb-12">Psicologia Online</h1>
-
-        <div className="bg-white rounded-lg shadow-lg p-8 space-y-8">
-          <h2 className="text-2xl font-semibold text-center text-gray-700">Encontre seu Psicólogo</h2>
-          <p className="text-gray-600 text-center mb-6">
-            Conecte-se com psicólogos especializados em diversas áreas da saúde mental de forma online e segura.
-          </p>
-
-          {/* Lista de psicólogos */}
-          <div className="space-y-6">
-            {/* Psicólogo 1 */}
-            <div className="bg-gray-100 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 flex items-center space-x-6">
-              <img 
-                src="/img/logo.png"
-                alt="Dra. Mariana Oliveira" 
-                className="w-20 h-20 rounded-full object-cover"
-              />
-              <div>
-                <h3 className="text-xl font-semibold text-indigo-600 mb-2">Dra. Mariana Oliveira</h3>
-                <p className="text-gray-600 mb-2">Especialista em terapia cognitivo-comportamental e transtornos de ansiedade.</p>
-                <p className="text-gray-500 text-sm">CRP: 12345-SP</p>
-                <button
-                  className="bg-teal-600 text-white px-6 py-2 rounded-md hover:bg-teal-700 transition duration-300 mt-4"
-                  onClick={() => handleAgendarSessao(1)} // Passando o ID do médico
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-white py-20">
+      <div className="max-w-7xl mx-auto px-6">
+        <h1 className="text-5xl font-bold text-center text-indigo-700 mb-6">
+          Psicologia Online
+        </h1>
+        <p className="text-center text-lg text-gray-600 mb-12">
+          Encontre os melhores psicólogos e agende sua consulta online com segurança e conforto.
+        </p>
+        <div className="bg-white p-8 rounded-2xl shadow-2xl">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
+            Lista de Psicólogos
+          </h2>
+          {loading ? (
+            <div className="text-center text-gray-500">Carregando psicólogos...</div>
+          ) : psicologos.length === 0 ? (
+            <div className="text-center text-gray-500">Nenhum psicólogo encontrado.</div>
+          ) : (
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-8">
+              {psicologos.map((psicologo) => (
+                <div
+                  key={psicologo.id}
+                  className="bg-gray-50 rounded-xl shadow-md hover:shadow-lg transition duration-300 p-6 flex flex-col items-center text-center"
                 >
-                  Agendar Sessão
-                </button>
-              </div>
+                  <img
+                    src="/img/logo.png"
+                    alt={`Foto de ${psicologo.nome}`}
+                    className="w-24 h-24 rounded-full object-cover mb-4 border-2 border-indigo-100"
+                  />
+                  <h3 className="text-xl font-semibold text-indigo-600">{psicologo.nome}</h3>
+                  <p className="text-gray-600">{psicologo.especialidade || 'Especialista em saúde mental'}</p>
+                  <p className="text-gray-500 text-sm mt-1">CRP: {psicologo.crp || 'Não informado'}</p>
+                  <p className="text-indigo-700 font-bold text-lg mt-2">{psicologo.valor_consulta ? `R$ ${Number(psicologo.valor_consulta).toFixed(2)}` : 'Valor não informado'}</p>
+                  <button
+                    onClick={() => handleAgendarSessao(psicologo.id)}
+                    className="mt-6 bg-indigo-600 text-white px-5 py-2 rounded-full hover:bg-indigo-700 transition duration-300 text-sm font-medium"
+                  >
+                    Agendar Consulta
+                  </button>
+                </div>
+              ))}
             </div>
-
-            {/* Psicólogo 2 */}
-            <div className="bg-gray-100 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 flex items-center space-x-6">
-              <img 
-                src="/img/cerebro.jpg"
-                alt="Dr. Rafael Costa" 
-                className="w-20 h-20 rounded-full object-cover"
-              />
-              <div>
-                <h3 className="text-xl font-semibold text-indigo-600 mb-2">Dr. Rafael Costa</h3>
-                <p className="text-gray-600 mb-2">Especialista em psicoterapia de casal e orientação para adultos.</p>
-                <p className="text-gray-500 text-sm">CRP: 98765-RJ</p>
-                <button
-                  className="bg-teal-600 text-white px-6 py-2 rounded-md hover:bg-teal-700 transition duration-300 mt-4"
-                  onClick={() => handleAgendarSessao(2)} // Passando o ID do médico
-                >
-                  Agendar Sessão
-                </button>
-              </div>
-            </div>
-
-            {/* Psicólogo 3 */}
-            <div className="bg-gray-100 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 flex items-center space-x-6">
-              <img 
-                src="/img/ligacoes.jpg"
-                alt="Dra. Paula Martins" 
-                className="w-20 h-20 rounded-full object-cover"
-              />
-              <div>
-                <h3 className="text-xl font-semibold text-indigo-600 mb-2">Dra. Paula Martins</h3>
-                <p className="text-gray-600 mb-2">Especialista em psicologia infantil e apoio psicológico familiar.</p>
-                <p className="text-gray-500 text-sm">CRP: 54321-MG</p>
-                <button
-                  className="bg-teal-600 text-white px-6 py-2 rounded-md hover:bg-teal-700 transition duration-300 mt-4"
-                  onClick={() => handleAgendarSessao(3)} // Passando o ID do médico
-                >
-                  Agendar Sessão
-                </button>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

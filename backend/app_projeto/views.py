@@ -1,4 +1,4 @@
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseRedirect
 import json
 import re
 import requests
@@ -9,13 +9,12 @@ from django.contrib.auth.hashers import make_password
 from django.middleware.csrf import get_token
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_protect
-from .utils import generate_jwt
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth import authenticate, login, get_user_model
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .serializers import MyTokenObtainPairSerializer
 from .permissions import IsAdmin, IsPaciente, IsPsicologo, IsPsiquiatra
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -34,6 +33,8 @@ from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode
 from rest_framework.permissions import AllowAny
+from django.views.decorators.http import require_POST
+import os
 
 
 
@@ -45,16 +46,22 @@ def get_csrf_token(request):
 @csrf_exempt
 def cadastrar_usuario(request):
     if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Dados inválidos'}, status=400)
+        # Se multipart/form-data, use request.POST e request.FILES
+        if request.content_type and request.content_type.startswith('multipart/form-data'):
+            data = request.POST
+            foto = request.FILES.get('foto')
+        else:
+            try:
+                data = json.loads(request.body)
+            except json.JSONDecodeError:
+                return JsonResponse({'error': 'Dados inválidos'}, status=400)
+            foto = None
 
         # Coleta os dados do corpo da requisição
         nome = data.get('name')
         email = data.get('email')
         telefone = data.get('phone', '')
-        cpf = data.get('password')
+        cpf = data.get('cpf')  # CORRIGIDO: pega o campo correto do CPF
         senha = data.get('password')
         status = data.get('status', 'ativo')  # Definido como 'ativo' por padrão
         role = data.get('role')
@@ -77,12 +84,24 @@ def cadastrar_usuario(request):
         if role == 'Psicologo' and not data.get('crp'):
             return JsonResponse({'error': 'O CRP é obrigatório para psicólogos.'}, status=400)
 
-        # Verifica se o email já está registrado
-        if Usuario.objects.filter(email=email).exists():
-            return JsonResponse({'error': 'Email já cadastrado.'}, status=400)
-
         # Criptografa a senha
         senha_criptografada = make_password(senha)
+
+        # Valida especialidade e valor da consulta para psicólogos e psiquiatras
+        if role in ['Psiquiatra', 'Psicologo']:
+            if not data.get('especialidade'):
+                return JsonResponse({'error': 'A especialidade é obrigatória para profissionais.'}, status=400)
+            if not data.get('valor_consulta'):
+                return JsonResponse({'error': 'O valor da consulta é obrigatório para profissionais.'}, status=400)
+            try:
+                valor_consulta = float(data.get('valor_consulta'))
+            except (TypeError, ValueError):
+                return JsonResponse({'error': 'Valor da consulta inválido.'}, status=400)
+        else:
+            valor_consulta = None
+
+        # Foto (opcional, pode ser URL ou base64, ajuste conforme frontend)
+        
 
         # Criação do usuário no banco de dados
         usuario = Usuario(
@@ -94,7 +113,10 @@ def cadastrar_usuario(request):
             status=status,
             role=role,  # Adiciona o campo role corretamente
             crm=data.get('crm') if role == 'Psiquiatra' else None,  # Atribui o CRM somente se for psiquiatra
-            crp=data.get('crp') if role == 'Psicologo' else None,  # Atribui o CRP somente se for psicólogo
+            crp=data.get('crp') if role == 'Psicologo' else None,  # Atribui o CRP somente se for psiquiatra
+            especialidade=data.get('especialidade') if role in ['Psiquiatra', 'Psicologo'] else None,
+            valor_consulta=valor_consulta,
+            foto=foto,  # Agora aceita arquivo
         )
 
         # Salva o usuário no banco de dados
@@ -115,8 +137,9 @@ def cadastrar_usuario(request):
                 tipo=data.get('tipo_endereco'),
             )
 
-        # Gera o token JWT para o novo usuário
-        token = generate_jwt(usuario)
+        # Gera o token JWT para o novo usuário usando SimpleJWT
+        refresh = RefreshToken.for_user(usuario)
+        token = str(refresh.access_token)
 
         # Retorna uma resposta de sucesso com o token JWT
         return JsonResponse({'message': 'Cadastro realizado com sucesso!', 'token': token}, status=201)
@@ -138,7 +161,8 @@ def login_usuario(request):
             return JsonResponse({'error': 'Usuário não encontrado'}, status=404)
 
         if check_password(password, usuario.senha):  
-            token = generate_jwt(usuario)
+            refresh = RefreshToken.for_user(usuario)
+            token = str(refresh.access_token)
 
             response = JsonResponse({
                 'message': 'Login bem-sucedido!',
@@ -207,6 +231,7 @@ def usuario_autenticado(request):
         'email': usuario.email,
         'role': usuario.role,
         'nome': usuario.nome,
+        'foto': usuario.foto.url if usuario.foto else None,
     }
     # Retornando as informações do usuário
     return Response(response_data)
@@ -221,11 +246,6 @@ def create_jwt_for_user(user):
     # Retorna o token de acesso
     return str(refresh.access_token)
 
-
-def generate_jwt(usuario):
-    refresh = RefreshToken.for_user(usuario)
-    refresh.payload['user_id'] = usuario.id  # Adicionando o 'user_id' explicitamente
-    return str(refresh.access_token)
 
 # Recuperação de Senha (envio de e-mail para redefinir a senha)
 # class RecuperarSenhaAPIView(APIView):
@@ -334,14 +354,77 @@ def editar_usuario(request, id):
         return JsonResponse(serializer.data, status=200)
 
     elif request.method == 'PUT':
-        data = json.loads(request.body)
-        usuario.nome = data.get('nome', usuario.nome)
-        usuario.email = data.get('email', usuario.email)
-        usuario.cpf = data.get('cpf', usuario.cpf)
-        usuario.telefone = data.get('telefone', usuario.telefone)
-        usuario.role = data.get('role', usuario.role)
-        usuario.save()
-        return JsonResponse({'message': 'Usuário atualizado com sucesso'}, status=200)
+        if request.content_type and request.content_type.startswith('multipart/form-data'):
+            data = request.POST
+            foto = request.FILES.get('foto')
+            print('DEBUG FOTO:', foto)  # <-- LOG PARA DEPURAÇÃO
+            # Atualiza a foto se vier
+            if foto:
+                # Remove a foto antiga se existir
+                if usuario.foto and hasattr(usuario.foto, 'path') and os.path.isfile(usuario.foto.path):
+                    try:
+                        os.remove(usuario.foto.path)
+                    except Exception:
+                        pass
+                usuario.foto = foto
+            # Atualiza outros campos normalmente
+            usuario.nome = data.get('nome', usuario.nome)
+            usuario.email = data.get('email', usuario.email)
+            usuario.cpf = data.get('cpf', usuario.cpf)
+            usuario.telefone = data.get('telefone', usuario.telefone)
+            usuario.role = data.get('role', usuario.role)
+            if usuario.role == 'Psiquiatra':
+                usuario.crm = data.get('crm', usuario.crm)
+                usuario.crp = None
+            elif usuario.role == 'Psicologo':
+                usuario.crp = data.get('crp', usuario.crp)
+                usuario.crm = None
+            usuario.especialidade = data.get('especialidade', usuario.especialidade)
+            valor_consulta = data.get('valor_consulta', usuario.valor_consulta)
+            if valor_consulta is not None:
+                try:
+                    usuario.valor_consulta = float(valor_consulta)
+                except (TypeError, ValueError):
+                    pass
+            # usuario.stripe_email = data.get('stripe_email', usuario.stripe_email)
+            # usuario.stripe_account_id = data.get('stripe_account_id', usuario.stripe_account_id)
+            usuario.save()
+            serializer = UsuarioComEnderecoSerializer(usuario)
+            return JsonResponse(serializer.data, status=200)
+        else:
+            data = json.loads(request.body)
+            foto = None
+            usuario.nome = data.get('nome', usuario.nome)
+            usuario.email = data.get('email', usuario.email)
+            usuario.cpf = data.get('cpf', usuario.cpf)
+            usuario.telefone = data.get('telefone', usuario.telefone)
+            usuario.role = data.get('role', usuario.role)
+            if usuario.role == 'Psiquiatra':
+                usuario.crm = data.get('crm', usuario.crm)
+                usuario.crp = None
+            elif usuario.role == 'Psicologo':
+                usuario.crp = data.get('crp', usuario.crp)
+                usuario.crm = None
+            usuario.especialidade = data.get('especialidade', usuario.especialidade)
+            valor_consulta = data.get('valor_consulta', usuario.valor_consulta)
+            if valor_consulta is not None:
+                try:
+                    usuario.valor_consulta = float(valor_consulta)
+                except (TypeError, ValueError):
+                    pass
+            if foto is not None:
+                print('DEBUG FOTO (json):', foto)  # <-- LOG PARA DEPURAÇÃO
+                if usuario.foto and hasattr(usuario.foto, 'path') and os.path.isfile(usuario.foto.path):
+                    try:
+                        os.remove(usuario.foto.path)
+                    except Exception:
+                        pass
+                usuario.foto = foto
+            else:
+                usuario.foto = data.get('foto', usuario.foto)
+            usuario.save()
+            serializer = UsuarioComEnderecoSerializer(usuario)
+            return JsonResponse(serializer.data, status=200)
 
     return JsonResponse({'message': 'Método não permitido'}, status=405)
 
@@ -374,21 +457,6 @@ def rota_protegida(request):
         return JsonResponse({"message": "Acesso autorizado!", "user": request.user_data})
     
     return JsonResponse({"error": "Acesso não autorizado"}, status=401)
-
-class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
-    def validate(self, attrs):
-        data = super().validate(attrs)  # Gera os tokens padrão
-        user = self.user  # Obtém o usuário autenticado
-        
-        # Adiciona informações extras na resposta
-        data.update({
-            "user_id": user.id,
-            "name": user.nome,  # Corrigido para "nome", se seu modelo `Usuario` usa esse campo
-            "email": user.email,
-            "role": user.role,  # Se tiver esse campo no seu modelo
-        })
-        return data
-
 
 # Modifica a view para usar o novo serializer
 class MyTokenObtainPairView(TokenObtainPairView):
@@ -470,6 +538,15 @@ def atualizar_agendamento(request, id):
     return Response(serializer.errors, status=400)
 
 
+@api_view(['DELETE'])
+def deletar_agendamento(request, id):
+    try:
+        agendamento = Agendamento.objects.get(id=id)
+    except Agendamento.DoesNotExist:
+        return Response({"error": "Agendamento não encontrado"}, status=404)
+    agendamento.delete()
+    return Response({"success": "Agendamento excluído com sucesso."}, status=204)
+
 @csrf_exempt
 def google_login_view(request):
     if request.method == "POST":
@@ -488,7 +565,9 @@ def google_login_view(request):
         # Criar usuário se não existir
         user, created = User.objects.get_or_create(username=email, defaults={"email": email, "first_name": name})
 
-        jwt_token = generate_jwt(user)
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(user)
+        jwt_token = str(refresh.access_token)
         return JsonResponse({"token": jwt_token})
 
 @api_view(['GET', 'POST', 'PUT'])
@@ -531,5 +610,221 @@ def enderecos_usuario(request, usuario_id):
 def detalhar_usuario(request, id):
     usuario = get_object_or_404(Usuario, id=id)
     serializer = UsuarioComEnderecoSerializer(usuario)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def listar_psicologos(request, id=None):
+    if id:
+        try:
+            psicologo = Usuario.objects.get(id=id, role='Psicologo')
+            serializer = UsuarioSerializer(psicologo)
+            return Response(serializer.data)
+        except Usuario.DoesNotExist:
+            return Response({"error": "Psicólogo não encontrado"}, status=404)
+    else:
+        psicologos = Usuario.objects.filter(role='Psicologo')
+        serializer = UsuarioSerializer(psicologos, many=True)
+        return Response(serializer.data)
+
+# --- INÍCIO MERCADO PAGO ---
+# Aqui estou importando as bibliotecas necessárias para integração com o Mercado Pago
+import mercadopago
+from urllib.parse import urlencode
+
+# Endpoint para iniciar o OAuth do Mercado Pago (profissional autoriza o app)
+@csrf_exempt
+def iniciar_oauth_mercadopago(request):
+    # Aqui eu gero a URL de autorização do Mercado Pago para o profissional vincular a conta
+    # Eu pego o user_id do profissional que está tentando vincular
+    user_id = request.GET.get('user_id') or request.POST.get('user_id')
+    client_id = settings.MERCADOPAGO_CLIENT_ID
+    redirect_uri = settings.MERCADOPAGO_REDIRECT_URI
+    base_url = 'https://auth.mercadopago.com.br/authorization'
+    # Eu adiciono o parâmetro state com o user_id para identificar o profissional no callback
+    params = {
+        'client_id': client_id,
+        'response_type': 'code',
+        'platform_id': 'mp',
+        'redirect_uri': redirect_uri,
+        'state': user_id,  # user_id vai no state
+    }
+    from urllib.parse import urlencode
+    url = f"{base_url}?{urlencode(params)}"
+    return JsonResponse({'auth_url': url})
+
+# Endpoint para receber o callback do OAuth e salvar o access_token do profissional
+@csrf_exempt
+def oauth_callback_mercadopago(request):
+    # Aqui eu troco o code pelo access_token do profissional e salvo no banco
+    code = request.GET.get('code')
+    user_id = request.GET.get('state')  # Envie o user_id no state para saber quem está autenticando
+    if not code or not user_id:
+        # Redireciona para o frontend com erro
+        return HttpResponseRedirect("http://localhost:3000/meu_perfil_psicologo?mp_status=error")
+    client_id = settings.MERCADOPAGO_CLIENT_ID
+    client_secret = settings.MERCADOPAGO_CLIENT_SECRET
+    redirect_uri = settings.MERCADOPAGO_REDIRECT_URI
+    token_url = 'https://api.mercadopago.com/oauth/token'
+    data = {
+        'grant_type': 'authorization_code',
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'code': code,
+        'redirect_uri': redirect_uri,
+    }
+    response = requests.post(token_url, data=data)
+    if response.status_code == 200:
+        token_data = response.json()
+        mp_user_id = token_data['user_id']
+        mp_access_token = token_data['access_token']
+        usuario = Usuario.objects.get(id=user_id)
+        usuario.mp_user_id = mp_user_id
+        usuario.mp_access_token = mp_access_token
+        usuario.save()
+        # Redireciona para o perfil correto com sucesso
+        perfil = 'meu_perfil_psicologo' if usuario.role == 'Psicologo' else 'meu_perfil_psiquiatra'
+        return HttpResponseRedirect(f"http://localhost:3000/{perfil}?mp_status=success")
+    else:
+        # Redireciona para o perfil correto com erro
+        try:
+            usuario = Usuario.objects.get(id=user_id)
+            perfil = 'meu_perfil_psicologo' if usuario.role == 'Psicologo' else 'meu_perfil_psiquiatra'
+        except:
+            perfil = 'meu_perfil_psicologo'
+        return HttpResponseRedirect(f"http://localhost:3000/{perfil}?mp_status=error")
+# --- FIM MERCADO PAGO ---
+
+@csrf_exempt
+def criar_pagamento_mercadopago(request):
+    # Cria um pagamento para o profissional usando o access_token dele
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método não permitido'}, status=405)
+    try:
+        data = json.loads(request.body)
+    except Exception as e:
+        return JsonResponse({'error': f'JSON inválido: {str(e)}'}, status=400)
+    profissional_id = data.get('profissional_id')
+    preco = float(data.get('preco', 100))
+    nome_produto = data.get('nome_produto', 'Consulta Online')
+    if not profissional_id:
+        return JsonResponse({'error': 'profissional_id ausente'}, status=400)
+    try:
+        usuario = Usuario.objects.get(id=profissional_id)
+    except Usuario.DoesNotExist:
+        return JsonResponse({'error': 'Profissional não encontrado'}, status=400)
+    if not usuario.mp_access_token:
+        return JsonResponse({'error': 'Profissional não vinculado ao Mercado Pago.'}, status=400)
+    sdk = mercadopago.SDK(usuario.mp_access_token)
+    ngrok_url = "https://012f-181-213-251-83.ngrok-free.app"
+    marketplace_fee = round(preco * 0.10, 2)
+    preference_data = {
+        "items": [
+            {
+                "title": nome_produto,
+                "quantity": 1,
+                "currency_id": "BRL",
+                "unit_price": preco
+            }
+        ],
+        "back_urls": {
+            "success": f"{ngrok_url}/pagamentoplano?status=sucesso",
+            "failure": f"{ngrok_url}/pagamentoplano?status=erro",
+            "pending": f"{ngrok_url}/pagamentoplano?status=pendente"
+        },
+        "auto_return": "approved",
+        "marketplace_fee": marketplace_fee,
+        "payment_methods": {
+            "excluded_payment_types": [
+                {"id": "ticket"},        # Exclui boleto
+                {"id": "atm"},           # Exclui lotérica/ATM
+                {"id": "prepaid_card"}   # Exclui cartão pré-pago
+            ]
+        }
+    }
+    preference_response = sdk.preference().create(preference_data)
+    print('Resposta Mercado Pago:', preference_response)  # <-- Adiciona log detalhado
+    if preference_response.get('status') == 201:
+        return JsonResponse({'checkout_url': preference_response.get('response', {}).get('init_point')})
+    else:
+        return JsonResponse({'error': 'Erro ao criar pagamento no Mercado Pago.', 'mp_response': preference_response}, status=400)
+
+@api_view(['GET'])
+def listar_agendamentos_profissional(request):
+    # Busca o usuário logado via JWT manualmente
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    try:
+        import jwt
+        from django.conf import settings
+        from django.utils.timezone import localtime
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+    if usuario.role not in ['Psicologo', 'Psiquiatra']:
+        return Response({'error': 'Apenas profissionais podem acessar suas consultas.'}, status=403)
+    # Busca agendamentos para psicólogos e psiquiatras
+    if usuario.role == 'Psiquiatra':
+        agendamentos = Agendamento.objects.filter(psiquiatra=usuario)
+    elif usuario.role == 'Psicologo':
+        agendamentos = Agendamento.objects.filter(psicologo=usuario)
+    else:
+        agendamentos = Agendamento.objects.none()
+    data = []
+    for ag in agendamentos:
+        paciente = ag.usuario
+        # Garante que a data/hora seja convertida para o timezone local do servidor
+        data_hora_local = localtime(ag.data_hora) if ag.data_hora else None
+        data.append({
+            'id': ag.id,
+            'paciente': {
+                'id': paciente.id,
+                'nome': paciente.nome,
+                'email': paciente.email,
+                'telefone': paciente.telefone,
+                'cpf': paciente.cpf,
+                'status': paciente.status,
+                'role': paciente.role,
+            },
+            'data_iso': data_hora_local.isoformat() if data_hora_local else '',
+            'data': data_hora_local.strftime('%Y-%m-%d') if data_hora_local else '',
+            'hora': data_hora_local.strftime('%H:%M') if data_hora_local else '',
+            'status': ag.status,
+            'observacao': ag.observacoes or '',
+            'link_consulta': ag.link_consulta or '',
+        })
+    return Response(data)
+
+@api_view(['GET'])
+def listar_agendamentos_paciente(request):
+    user = request.user
+    if not user.is_authenticated:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    try:
+        usuario = Usuario.objects.get(id=user.id)
+    except Usuario.DoesNotExist:
+        return Response({'error': 'Usuário não encontrado.'}, status=404)
+    agendamentos = Agendamento.objects.filter(usuario=usuario)
+    data = []
+    for ag in agendamentos:
+        data.append({
+            'id': ag.id,
+            'profissional': ag.psiquiatra.nome if ag.psiquiatra else '',
+            'data': ag.data_hora.strftime('%Y-%m-%d') if ag.data_hora else '',
+            'hora': ag.data_hora.strftime('%H:%M') if ag.data_hora else '',
+            'status': ag.status,
+            'observacao': ag.observacoes if hasattr(ag, 'observacoes') else '',
+        })
+    return Response(data)
+
+@api_view(['GET'])
+def detalhar_agendamento(request, id):
+    try:
+        agendamento = Agendamento.objects.get(id=id)
+    except Agendamento.DoesNotExist:
+        return Response({'error': 'Agendamento não encontrado'}, status=404)
+    serializer = AgendamentoSerializer(agendamento)
     return Response(serializer.data)
 

@@ -17,6 +17,7 @@ export default function AreaDoUsuario() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [role, setRole] = useState('');
     const [userName, setUserName] = useState('');
+    const [foto, setFoto] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
@@ -37,6 +38,7 @@ export default function AreaDoUsuario() {
                 setIsLoggedIn(true);
                 setRole(data.role);
                 setUserName(data.email);
+                setFoto(data.foto || null);
             } catch (error) {
                 console.error('Erro ao validar usuário:', error);
                 router.push('/login');
@@ -63,9 +65,22 @@ export default function AreaDoUsuario() {
     return (
         <div className="min-h-screen flex bg-gray-50">
             {/* Sidebar */}
-            <div className="w-full lg:w-80 bg-indigo-800 text-white p-6 shadow-xl">
+            <div className="w-full lg:w-80 bg-indigo-800 text-white p-6 shadow-xl flex flex-col items-center">
+                {foto ? (
+                    <img
+                        src={`http://localhost:8000${foto}`}
+                        alt="Foto de perfil"
+                        className="w-24 h-24 rounded-full object-cover border-4 border-white mb-4 shadow"
+                    />
+                ) : (
+                    <img
+                        src="/img/logo.png"
+                        alt="Foto padrão"
+                        className="w-24 h-24 rounded-full object-cover border-4 border-white mb-4 shadow"
+                    />
+                )}
                 <h2 className="text-2xl font-semibold mb-8 text-center lg:text-left">Área do Usuário</h2>
-                <nav className="flex flex-col space-y-4">
+                <nav className="flex flex-col space-y-4 w-full">
                     <Link href="/perfil" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
                         <FiUser size={20} />
                         <span>Meu Perfil</span>
@@ -79,7 +94,7 @@ export default function AreaDoUsuario() {
                         <span>Configurações</span>
                     </Link>
                 </nav>
-                <div className="mt-auto">
+                <div className="mt-auto w-full">
                     <button
                         onClick={handleLogout}
                         className="w-full bg-red-600 p-3 rounded-lg hover:bg-red-700 transition duration-300 mt-6"
