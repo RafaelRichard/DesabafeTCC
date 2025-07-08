@@ -10,7 +10,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
 
 interface ConsultaEvent {
   id: number;
-  paciente: any;
+  profissional: any;
   status: string;
   observacao?: string;
   title: string;
@@ -19,7 +19,7 @@ interface ConsultaEvent {
   link_consulta?: string;
 }
 
-export default function ConsultasPsiquiatras() {
+export default function ConsultasPaciente() {
   const [consultas, setConsultas] = useState<ConsultaEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedConsulta, setSelectedConsulta] = useState<any | null>(null);
@@ -29,7 +29,6 @@ export default function ConsultasPsiquiatras() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [calendarMonth, setCalendarMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
 
-  // Gera matriz de dias do mês para o grid
   function getMonthMatrix(month: Date) {
     const year = month.getFullYear();
     const monthIdx = month.getMonth();
@@ -56,7 +55,6 @@ export default function ConsultasPsiquiatras() {
     return matrix;
   }
 
-  // Gera matriz de dias da semana para o grid
   function getWeekArray(date: Date) {
     const week: (Date | null)[] = [];
     const start = new Date(date);
@@ -67,7 +65,6 @@ export default function ConsultasPsiquiatras() {
     return [week];
   }
 
-  // Navegação
   const handlePrev = () => {
     if (view === 'month') setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
     if (view === 'week') setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7));
@@ -79,7 +76,6 @@ export default function ConsultasPsiquiatras() {
     if (view === 'day') setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1));
   };
 
-  // Eventos agrupados por dia
   const eventosPorDia: { [key: string]: ConsultaEvent[] } = {};
   consultas.forEach((ev: ConsultaEvent) => {
     if (ev.start) {
@@ -89,7 +85,6 @@ export default function ConsultasPsiquiatras() {
     }
   });
 
-  // Matriz de datas para renderização
   let dateMatrix: (Date | null)[][] = [];
   let label = '';
   if (view === 'month') {
@@ -105,29 +100,48 @@ export default function ConsultasPsiquiatras() {
     label = format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
   }
 
-  // Função para buscar novamente as consultas
   const fetchConsultas = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/agendamentos_profissional/", {
-        credentials: "include",
+      // Busca o token JWT salvo no localStorage (ajuste a chave se necessário)
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access') : null;
+      console.log('Token JWT enviado:', token); // DEBUG
+      const res = await fetch("http://localhost:8000/api/agendamentos_paciente/", {
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json',
+        },
       });
+      if (res.status === 401 || res.status === 403) {
+        toast.error('Sessão expirada. Faça login novamente.');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+        setConsultas([]);
+        setLoading(false);
+        return;
+      }
       if (!res.ok) throw new Error("Erro ao buscar consultas");
       const data = await res.json();
+      console.log('Agendamentos recebidos:', data);
       const eventos = data.map((c: any) => {
         let start: Date | null = null;
         let end: Date | null = null;
-        if (c.data && c.hora) {
+        // Preferir data_iso se existir
+        if (c.data_iso) {
+          start = new Date(c.data_iso);
+          end = new Date(start.getTime() + 60 * 60 * 1000);
+        } else if (c.data && c.hora) {
           const dataHora = `${c.data}T${c.hora.length === 5 ? c.hora + ':00' : c.hora}`;
           start = new Date(dataHora);
           end = new Date(start.getTime() + 60 * 60 * 1000);
         }
         return {
           ...c,
-          title: `${c.paciente?.nome || ''} (${c.status})`,
+          title: `${c.profissional?.nome || ''} (${c.status})`,
           start,
           end,
-          link_consulta: c.link_consulta || '', // Usa sempre o valor do backend
+          link_consulta: c.link_consulta || '',
         };
       }).filter((ev: any) => {
         const valido = ev.start instanceof Date && !isNaN(ev.start) && ev.end instanceof Date && !isNaN(ev.end);
@@ -135,6 +149,7 @@ export default function ConsultasPsiquiatras() {
       });
       setConsultas(eventos);
     } catch (err) {
+      toast.error('Erro ao buscar consultas. Faça login novamente.');
       setConsultas([]);
     } finally {
       setLoading(false);
@@ -145,75 +160,58 @@ export default function ConsultasPsiquiatras() {
     fetchConsultas();
   }, []);
 
-  // Função para buscar o agendamento completo
   const fetchAgendamentoById = async (id: number) => {
-    const res = await fetch(`http://localhost:8000/api/agendamentos/${id}/`);
+    // Busca o token JWT salvo no localStorage
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access') : null;
+    const res = await fetch(`http://localhost:8000/api/agendamentos/${id}/`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        'Content-Type': 'application/json',
+      },
+    });
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
     if (!res.ok) throw new Error('Erro ao buscar agendamento');
     return await res.json();
   };
 
-  // Função para abrir modal ao clicar no evento
   const handleSelectEvent = (event: any) => {
     setSelectedConsulta(event);
     setModalOpen(true);
   };
 
-  // Função para confirmar agendamento
-  const handleConfirmar = async () => {
-    if (!selectedConsulta) return;
-    try {
-      const agendamentoCompleto = await fetchAgendamentoById(selectedConsulta.id);
-      const atualizado = { ...agendamentoCompleto, status: 'confirmado' };
-      const res = await fetch(`http://localhost:8000/api/agendamentos/${selectedConsulta.id}/atualizar/`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(atualizado),
-      });
-      if (!res.ok) throw new Error('Erro ao confirmar agendamento');
-      toast.success('Agendamento confirmado!');
-      setModalOpen(false);
-      fetchConsultas();
-    } catch (err) {
-      toast.error('Erro ao confirmar agendamento.');
-    }
-  };
-
-  // Função para cancelar agendamento
   const handleCancelar = async () => {
     if (!selectedConsulta) return;
     try {
       const agendamentoCompleto = await fetchAgendamentoById(selectedConsulta.id);
       const atualizado = { ...agendamentoCompleto, status: 'cancelado' };
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access') : null;
       const res = await fetch(`http://localhost:8000/api/agendamentos/${selectedConsulta.id}/atualizar/`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json',
+        },
         credentials: 'include',
         body: JSON.stringify(atualizado),
       });
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
       if (!res.ok) throw new Error('Erro ao cancelar agendamento');
       toast.success('Agendamento cancelado!');
       setModalOpen(false);
       fetchConsultas();
-    } catch (err) {
-      toast.error('Erro ao cancelar agendamento.');
-    }
-  };
-
-  // Função para excluir agendamento
-  const handleExcluir = async () => {
-    if (!selectedConsulta) return;
-    try {
-      const res = await fetch(`http://localhost:8000/api/agendamentos/${selectedConsulta.id}/deletar/`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok && res.status !== 204) throw new Error('Erro ao excluir agendamento');
-      toast.success('Agendamento excluído!');
-      setModalOpen(false);
-      fetchConsultas();
-    } catch (err) {
-      toast.error('Erro ao excluir agendamento.');
+    } catch (err: any) {
+      if (err.message && err.message.includes('Sessão expirada')) {
+        toast.error('Sessão expirada. Faça login novamente.');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+      } else {
+        toast.error('Erro ao cancelar agendamento.');
+      }
     }
   };
 
@@ -280,31 +278,40 @@ export default function ConsultasPsiquiatras() {
               <div className="space-y-4 text-lg">
                 <div className="bg-emerald-50 rounded-xl p-4 shadow-sm border border-emerald-100">
                   <div className="font-bold text-emerald-800 text-xl mb-2 flex items-center gap-2">
-                    Paciente
-                    <span className="inline-block bg-emerald-200 text-emerald-700 text-xs px-2 py-1 rounded-full ml-2">ID: {selectedConsulta.paciente?.id}</span>
+                    Profissional
+                    <span className="inline-block bg-emerald-200 text-emerald-700 text-xs px-2 py-1 rounded-full ml-2">ID: {selectedConsulta.profissional?.id}</span>
                   </div>
-                  <div><b>Nome:</b> {selectedConsulta.paciente?.nome}</div>
-                  <div><b>Email:</b> <a href={`mailto:${selectedConsulta.paciente?.email}`} className="text-blue-700 underline hover:text-blue-900 transition">{selectedConsulta.paciente?.email}</a></div>
-                  <div><b>Telefone:</b> <a href={`tel:${selectedConsulta.paciente?.telefone}`} className="text-blue-700 underline hover:text-blue-900 transition">{selectedConsulta.paciente?.telefone}</a></div>
-                  <div><b>Status:</b> {selectedConsulta.paciente?.status}</div>
-                  <div><b>Tipo:</b> {selectedConsulta.paciente?.role}</div>
+                  <div><b>Nome:</b> {selectedConsulta.profissional?.nome}</div>
+                  <div><b>Email:</b> <a href={`mailto:${selectedConsulta.profissional?.email}`} className="text-blue-700 underline hover:text-blue-900 transition">{selectedConsulta.profissional?.email}</a></div>
+                  <div><b>Telefone:</b> <a href={`tel:${selectedConsulta.profissional?.telefone}`} className="text-blue-700 underline hover:text-blue-900 transition">{selectedConsulta.profissional?.telefone}</a></div>
+                  <div><b>Tipo:</b> {selectedConsulta.profissional?.role}</div>
                 </div>
                 <div className="bg-white rounded-xl p-4 shadow-sm border border-emerald-100">
                   <div><b>Data:</b> {selectedConsulta.start ? formatDate(selectedConsulta.start, "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR }) : '-'}</div>
                   <div><b>Status:</b> <span className={`font-semibold ${selectedConsulta.status === 'pendente' ? 'text-yellow-600' : selectedConsulta.status === 'confirmado' ? 'text-emerald-600' : 'text-red-600'}`}>{selectedConsulta.status}</span></div>
                   {selectedConsulta.observacao && <div><b>Observação:</b> {selectedConsulta.observacao}</div>}
-                  {selectedConsulta.link_consulta && <div><b>Link da Consulta:</b> <a href={selectedConsulta.link_consulta} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-900 transition">Acessar Consulta</a></div>}
+                  {selectedConsulta.link_consulta && (
+                    <div>
+                      <b>Link da Consulta:</b> <a href={selectedConsulta.link_consulta} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-900 transition">Acessar Consulta</a>
+                      <div className="mt-4">
+                        <iframe
+                          src={selectedConsulta.link_consulta}
+                          style={{ width: '100%', height: 400, border: 0, borderRadius: 12 }}
+                          allow="camera; microphone; fullscreen; display-capture"
+                          title="Jitsi Meet"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
             <div className="flex flex-col md:flex-row gap-4 mt-10 justify-center">
               {selectedConsulta?.status === 'pendente' && (
                 <>
-                  <button onClick={handleConfirmar} className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-emerald-600 hover:to-cyan-600 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400">Confirmar</button>
-                  <button onClick={handleCancelar} className="bg-gradient-to-r from-yellow-400 to-red-400 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-yellow-500 hover:to-red-500 transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400">Desmarcar</button>
+                  <button onClick={handleCancelar} className="bg-gradient-to-r from-yellow-400 to-red-400 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-yellow-500 hover:to-red-500 transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400">Cancelar</button>
                 </>
               )}
-              <button onClick={handleExcluir} className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-red-600 hover:to-pink-600 transition-all focus:outline-none focus:ring-2 focus:ring-red-400">Excluir</button>
               <button onClick={() => setModalOpen(false)} className="px-8 py-3 rounded-lg border border-gray-300 text-gray-700 font-bold hover:bg-gray-100 transition-all focus:outline-none focus:ring-2 focus:ring-gray-300">Fechar</button>
             </div>
           </Dialog.Panel>

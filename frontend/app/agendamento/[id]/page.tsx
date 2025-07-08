@@ -93,12 +93,12 @@ export default function Agendamento() {
   }, [id]);
 
   // Gera link de consulta automaticamente
-  useEffect(() => {
-    if (dataHora && profissional) {
-      const link = `https://consulta-online.com/agendamento-${profissional.id}-${dataHora}`;
-      setLinkConsulta(link);
-    }
-  }, [dataHora, profissional]);
+  // useEffect(() => {
+  //   if (dataHora && profissional) {
+  //     const link = `https://consulta-online.com/agendamento-${profissional.id}-${dataHora}`;
+  //     setLinkConsulta(link);
+  //   }
+  // }, [dataHora, profissional]);
 
   const handleAgendar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,14 +108,14 @@ export default function Agendamento() {
       return;
     }
 
-    // O backend espera: usuario, psiquiatra, data_hora, status, observacoes, link_consulta
+    // O backend espera: usuario, psiquiatra, data_hora, status, observacoes
     const agendamento = {
       usuario: usuario.id, // campo correto para paciente
       psiquiatra: profissional.id, // campo correto para profissional (psiquiatra ou psicologo)
       data_hora: dataHora,
       status,
       observacoes,
-      link_consulta: linkConsulta,
+      // NÃO envie link_consulta, o backend irá gerar
     };
 
     try {
@@ -129,8 +129,18 @@ export default function Agendamento() {
       });
 
       if (!response.ok) throw new Error('Erro ao agendar consulta');
+      const agendamentoCriado = await response.json();
+      // Busca o agendamento pelo ID para pegar o link gerado
+      if (agendamentoCriado && agendamentoCriado.id) {
+        const res = await fetch(`${getBackendUrl()}/api/agendamentos/${agendamentoCriado.id}/`);
+        if (res.ok) {
+          const agendamentoDetalhado = await res.json();
+          setLinkConsulta(agendamentoDetalhado.link_consulta || '');
+        }
+      }
       toast.success('Consulta agendada com sucesso!');
-      setTimeout(() => router.push('/'), 2000);
+      // Não redireciona imediatamente, deixa o usuário ver o link
+      // setTimeout(() => router.push('/'), 2000);
     } catch (error) {
       console.error(error);
       toast.error('Erro ao agendar a consulta.');
