@@ -85,7 +85,7 @@ export default function AreaDoUsuario() {
                         <FiUser size={20} />
                         <span>Meu Perfil</span>
                     </Link>
-                    <Link href="/consultas" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
+                    <Link href="/consultas_paciente" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
                         <FiClipboard size={20} />
                         <span>Minhas Consultas</span>
                     </Link>
@@ -129,7 +129,7 @@ export default function AreaDoUsuario() {
                             <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
                                 <h3 className="text-xl font-semibold text-gray-700 mb-4">Minhas Consultas</h3>
                                 <p className="text-gray-500">Visualize e gerencie suas consultas.</p>
-                                <Link href="/consultas">
+                                <Link href="/consultas_paciente">
                                     <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
                                         Ver Consultas
                                     </button>

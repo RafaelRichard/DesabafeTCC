@@ -72,6 +72,8 @@ urlpatterns = [
     path('api/mercadopago/oauth/', iniciar_oauth_mercadopago, name='iniciar_oauth_mercadopago'),
     path('api/mercadopago/oauth/callback/', oauth_callback_mercadopago, name='oauth_callback_mercadopago'),
     path('api/mercadopago/pagamento/', criar_pagamento_mercadopago, name='criar_pagamento_mercadopago'),
+
+    # (Removido endpoint de criar_sala_daily, agora o link é gerado direto no agendamento)
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

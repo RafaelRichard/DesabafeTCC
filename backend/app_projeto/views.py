@@ -495,13 +495,38 @@ class PacienteOnlyView(APIView):
 
 @api_view(['GET'])
 def listar_agendamentos(request):
+    # Apenas admin pode ver todos os agendamentos
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    try:
+        import jwt
+        from django.conf import settings
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+    if usuario.role != 'Admin':
+        return Response({'error': 'Apenas administradores podem ver todos os agendamentos.'}, status=403)
     agendamentos = Agendamento.objects.all()
     serializer = AgendamentoSerializer(agendamentos, many=True)
     return Response(serializer.data)
 
 @api_view(['POST'])
 def criar_agendamento(request):
-    serializer = AgendamentoSerializer(data=request.data)
+    """
+    Quando eu crio um agendamento, gero automaticamente o link da videoconferência no Jitsi Meet
+    e salvo no campo link_consulta do agendamento.
+    """
+    from django.utils.crypto import get_random_string
+    data = request.data.copy()  # Faço uma cópia mutável dos dados recebidos
+    # Gero um nome único para a sala (ex: consulta-<timestamp>-<randstr>)
+    nome_sala = f"consulta-{int(datetime.utcnow().timestamp())}-{get_random_string(6)}"
+    url = f"https://meet.jit.si/{nome_sala}"
+    data['link_consulta'] = url
+    # Crio o agendamento normalmente, agora com o link_consulta preenchido
+    serializer = AgendamentoSerializer(data=data)
     if serializer.is_valid():
         agendamento = serializer.save()
 
@@ -797,25 +822,51 @@ def listar_agendamentos_profissional(request):
         })
     return Response(data)
 
+
 @api_view(['GET'])
 def listar_agendamentos_paciente(request):
-    user = request.user
-    if not user.is_authenticated:
+    # Busca o usuário logado via JWT manualmente (igual ao de profissional)
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
         return Response({'error': 'Não autenticado.'}, status=401)
     try:
-        usuario = Usuario.objects.get(id=user.id)
-    except Usuario.DoesNotExist:
-        return Response({'error': 'Usuário não encontrado.'}, status=404)
+        import jwt
+        from django.conf import settings
+        from django.utils.timezone import localtime
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
     agendamentos = Agendamento.objects.filter(usuario=usuario)
     data = []
     for ag in agendamentos:
+        profissional = ag.psiquiatra if ag.psiquiatra else ag.psicologo
+        profissional_dict = None
+        if profissional:
+            profissional_dict = {
+                'id': profissional.id,
+                'nome': profissional.nome,
+                'email': profissional.email,
+                'telefone': profissional.telefone,
+                'role': profissional.role,
+                'crm': getattr(profissional, 'crm', None),
+                'crp': getattr(profissional, 'crp', None),
+                'especialidade': getattr(profissional, 'especialidade', None),
+                'valor_consulta': str(getattr(profissional, 'valor_consulta', '')),
+            }
+        # Garante que a data/hora seja convertida para o timezone local do servidor
+        from django.utils.timezone import localtime
+        data_hora_local = localtime(ag.data_hora) if ag.data_hora else None
         data.append({
             'id': ag.id,
-            'profissional': ag.psiquiatra.nome if ag.psiquiatra else '',
-            'data': ag.data_hora.strftime('%Y-%m-%d') if ag.data_hora else '',
-            'hora': ag.data_hora.strftime('%H:%M') if ag.data_hora else '',
+            'profissional': profissional_dict,
+            'data_iso': data_hora_local.isoformat() if data_hora_local else '',
+            'data': data_hora_local.strftime('%Y-%m-%d') if data_hora_local else '',
+            'hora': data_hora_local.strftime('%H:%M') if data_hora_local else '',
             'status': ag.status,
-            'observacao': ag.observacoes if hasattr(ag, 'observacoes') else '',
+            'observacao': ag.observacoes or '',
+            'link_consulta': ag.link_consulta or '',
         })
     return Response(data)
 
@@ -827,4 +878,8 @@ def detalhar_agendamento(request, id):
         return Response({'error': 'Agendamento não encontrado'}, status=404)
     serializer = AgendamentoSerializer(agendamento)
     return Response(serializer.data)
+
+
+# --- INTEGRAÇÃO JITSI MEET ---
+# Agora o link da videoconferência é gerado diretamente como https://meet.jit.si/consulta-<timestamp>-<randstr>
 
