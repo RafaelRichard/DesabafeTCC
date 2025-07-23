@@ -35,6 +35,7 @@ from django.utils.http import urlsafe_base64_decode
 from rest_framework.permissions import AllowAny
 from django.views.decorators.http import require_POST
 import os
+from django.utils.dateparse import parse_date
 
 
 
@@ -389,6 +390,7 @@ def editar_usuario(request, id):
             # usuario.stripe_email = data.get('stripe_email', usuario.stripe_email)
             # usuario.stripe_account_id = data.get('stripe_account_id', usuario.stripe_account_id)
             usuario.save()
+            usuario.refresh_from_db()  # Garante que o path da foto está atualizado
             serializer = UsuarioComEnderecoSerializer(usuario)
             return JsonResponse(serializer.data, status=200)
         else:
@@ -423,6 +425,7 @@ def editar_usuario(request, id):
             else:
                 usuario.foto = data.get('foto', usuario.foto)
             usuario.save()
+            usuario.refresh_from_db()  # Garante que o path da foto está atualizado
             serializer = UsuarioComEnderecoSerializer(usuario)
             return JsonResponse(serializer.data, status=200)
 
@@ -525,6 +528,35 @@ def criar_agendamento(request):
     nome_sala = f"consulta-{int(datetime.utcnow().timestamp())}-{get_random_string(6)}"
     url = f"https://meet.jit.si/{nome_sala}"
     data['link_consulta'] = url
+    # Antes de criar, verifica se já existe agendamento no mesmo bloco de 30 minutos
+    from datetime import timedelta
+    from .models import Agendamento, Usuario
+    try:
+        data_hora = data.get('data_hora')
+        if not data_hora:
+            return Response({'error': 'data_hora é obrigatória.'}, status=400)
+        # Converte para datetime
+        from django.utils.dateparse import parse_datetime
+        inicio = parse_datetime(data_hora)
+        if not inicio:
+            return Response({'error': 'data_hora inválida.'}, status=400)
+        fim = inicio + timedelta(minutes=30)
+        # Descobre profissional e campo correto
+        profissional_id = data.get('psiquiatra') or data.get('psicologo')
+        if not profissional_id:
+            return Response({'error': 'Profissional não informado.'}, status=400)
+        # Busca conflitos (pendente ou confirmado)
+        from django.db.models import Q
+        conflito = Agendamento.objects.filter(
+            (Q(psiquiatra_id=profissional_id) | Q(psicologo_id=profissional_id)) &
+            Q(data_hora__lt=fim) & Q(data_hora__gte=inicio) &
+            Q(status__in=['pendente', 'confirmado'])
+        ).exists()
+        if conflito:
+            return Response({'error': 'Já existe um agendamento neste horário ou bloco de 30 minutos.'}, status=400)
+    except Exception as e:
+        return Response({'error': f'Erro ao validar conflito de horário: {str(e)}'}, status=400)
+
     # Crio o agendamento normalmente, agora com o link_consulta preenchido
     serializer = AgendamentoSerializer(data=data)
     if serializer.is_valid():
@@ -740,7 +772,7 @@ def criar_pagamento_mercadopago(request):
     if not usuario.mp_access_token:
         return JsonResponse({'error': 'Profissional não vinculado ao Mercado Pago.'}, status=400)
     sdk = mercadopago.SDK(usuario.mp_access_token)
-    ngrok_url = "https://012f-181-213-251-83.ngrok-free.app"
+    ngrok_url = "https://70a0ae26b12e.ngrok-free.app"
     marketplace_fee = round(preco * 0.10, 2)
     preference_data = {
         "items": [
@@ -763,6 +795,9 @@ def criar_pagamento_mercadopago(request):
                 {"id": "ticket"},        # Exclui boleto
                 {"id": "atm"},           # Exclui lotérica/ATM
                 {"id": "prepaid_card"}   # Exclui cartão pré-pago
+            ],
+            "included_payment_methods": [
+                {"id": "pix"}
             ]
         }
     }
@@ -880,6 +915,73 @@ def detalhar_agendamento(request, id):
     return Response(serializer.data)
 
 
-# --- INTEGRAÇÃO JITSI MEET ---
-# Agora o link da videoconferência é gerado diretamente como https://meet.jit.si/consulta-<timestamp>-<randstr>
+@api_view(['GET'])
+def horarios_ocupados(request):
+    """
+    Retorna os horários ocupados de um profissional (psiquiatra ou psicologo) em uma data.
+    Parâmetros GET:
+      - profissional_id: id do profissional
+      - tipo: 'psiquiatra' ou 'psicologo'
+      - data: 'YYYY-MM-DD'
+    Retorna: ["09:00", "10:30", ...]
+    """
+    profissional_id = request.GET.get('profissional_id')
+    tipo = request.GET.get('tipo')
+    data_str = request.GET.get('data')
+    if not profissional_id or not tipo or not data_str:
+        return Response({'error': 'profissional_id, tipo e data são obrigatórios.'}, status=400)
+    try:
+        data = parse_date(data_str)
+        if not data:
+            raise ValueError
+    except Exception:
+        return Response({'error': 'Data inválida.'}, status=400)
+    from .models import Agendamento, Usuario
+    from datetime import timedelta
+    profissional = Usuario.objects.filter(id=profissional_id, role__iexact=tipo.capitalize()).first()
+    if not profissional:
+        return Response({'error': 'Profissional não encontrado.'}, status=404)
+    # Busca agendamentos confirmados ou pendentes para o dia
+    if tipo == 'psiquiatra':
+        ags = Agendamento.objects.filter(psiquiatra=profissional, data_hora__date=data, status__in=['pendente', 'confirmado'])
+    else:
+        ags = Agendamento.objects.filter(psicologo=profissional, data_hora__date=data, status__in=['pendente', 'confirmado'])
+
+    horarios_ocupados = set()
+    intervalo = timedelta(minutes=30)
+    for ag in ags:
+        inicio = ag.data_hora
+        # Se no futuro houver campo de duração, use: duracao = getattr(ag, 'duracao', 30)
+        # Fim = início + 30 minutos (padrão)
+        fim = inicio + intervalo
+        atual = inicio
+        while atual < fim:
+            horarios_ocupados.add(atual.strftime('%H:%M'))
+            atual += intervalo
+
+    horarios = sorted(horarios_ocupados)
+    return Response(horarios)
+
+@csrf_exempt
+def upload_foto_usuario(request, id):
+    """
+    Endpoint dedicado para upload de foto de perfil via POST (multipart/form-data).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método não permitido'}, status=405)
+    usuario = get_object_or_404(Usuario, id=id)
+    foto = request.FILES.get('foto')
+    if not foto:
+        return JsonResponse({'error': 'Nenhuma foto enviada.'}, status=400)
+    # Remove a foto antiga se existir
+    if usuario.foto and hasattr(usuario.foto, 'path') and os.path.isfile(usuario.foto.path):
+        try:
+            os.remove(usuario.foto.path)
+        except Exception:
+            pass
+    usuario.foto = foto
+    usuario.save()
+    usuario.refresh_from_db()
+    serializer = UsuarioComEnderecoSerializer(usuario)
+    return JsonResponse(serializer.data, status=200)
 

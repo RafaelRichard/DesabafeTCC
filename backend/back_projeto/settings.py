@@ -47,7 +47,7 @@ DEBUG = True
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    '012f-181-213-251-83.ngrok-free.app',  # altera toda vez que gerar um novo túnel ngrok
+    'https://70a0ae26b12e.ngrok-free.app',  # altera toda vez que gerar um novo túnel ngrok
 ]
 
 
@@ -69,14 +69,14 @@ INSTALLED_APPS = [
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
-    "https://012f-181-213-251-83.ngrok-free.app",  # Altere para o seu domínio ngrok
+    "https://70a0ae26b12e.ngrok-free.app",  # Altere para o seu domínio ngrok
 ]
 
 # CORS CONFIGURAÇÃO CORRETA
 # Eu deixo apenas UMA definição de CORS_ALLOWED_ORIGINS, incluindo localhost e ngrok
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
-    "https://012f-181-213-251-83.ngrok-free.app",  # Altere para o seu domínio ngrok
+    "https://70a0ae26b12e.ngrok-free.app",  # Altere para o seu domínio ngrok
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -210,7 +210,7 @@ STATIC_URL = 'static/'
 
 # Configuração de arquivos de mídia (fotos de perfil, etc)
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'usuarios_fotos'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -220,4 +220,4 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 MERCADOPAGO_CLIENT_ID = '5538933996760008'
 MERCADOPAGO_CLIENT_SECRET = 'oVnfqCgl52VyPAz2B1Rv4MJSsQeMFXXB'
-MERCADOPAGO_REDIRECT_URI = 'https://012f-181-213-251-83.ngrok-free.app/api/mercadopago/oauth/callback/' # altera toda vez que gerar um novo túnel ngrok
+MERCADOPAGO_REDIRECT_URI = 'https://70a0ae26b12e.ngrok-free.app/api/mercadopago/oauth/callback/' # altera toda vez que gerar um novo túnel ngrok

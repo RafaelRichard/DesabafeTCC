@@ -26,7 +26,7 @@ from app_projeto.views import (
     detalhar_usuario, listar_psicologos,
     iniciar_oauth_mercadopago, oauth_callback_mercadopago, criar_pagamento_mercadopago,
     listar_agendamentos_profissional, listar_agendamentos_paciente, deletar_agendamento,
-    detalhar_agendamento
+    detalhar_agendamento, horarios_ocupados, upload_foto_usuario
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -47,6 +47,7 @@ urlpatterns = [
     path('api/users/', listar_usuarios, name='listar_usuarios'),
     path('api/users/<int:id>/', editar_usuario, name='editar_usuario'),
     path('api/users/<int:id>/delete/', excluir_usuario, name='excluir_usuario'),
+    path('api/users/<int:id>/upload_foto/', upload_foto_usuario, name='upload_foto_usuario'),
 
     # listagem de psiquiatras
     path('api/psiquiatras/', listar_psiquiatras, name='listar_psiquiatras'),
@@ -72,6 +73,9 @@ urlpatterns = [
     path('api/mercadopago/oauth/', iniciar_oauth_mercadopago, name='iniciar_oauth_mercadopago'),
     path('api/mercadopago/oauth/callback/', oauth_callback_mercadopago, name='oauth_callback_mercadopago'),
     path('api/mercadopago/pagamento/', criar_pagamento_mercadopago, name='criar_pagamento_mercadopago'),
+
+    # HORÁRIOS OCUPADOS
+    path('api/horarios_ocupados/', horarios_ocupados, name='horarios_ocupados'),
 
     # (Removido endpoint de criar_sala_daily, agora o link é gerado direto no agendamento)
 ]

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { getBackendUrl } from '../utils/backend';
@@ -18,61 +18,43 @@ interface Endereco {
   tipo: string;
 }
 
-interface Psicologo {
+interface Admin {
   id: number;
   nome: string;
   email: string;
-  crp: string;
-  especialidade?: string;
   telefone?: string;
   enderecos?: Endereco[];
-  mp_user_id?: string; // Mercado Pago user id
-  mp_access_token?: string; // Mercado Pago access token
   foto?: string;
 }
 
-interface FormPsicologo extends Partial<Psicologo>, Partial<Endereco> {}
-
-export default function PerfilPsicologo() {
-  const [psicologo, setPsicologo] = useState<Psicologo | null>(null);
+export default function MeuPerfilAdmin() {
+  const [admin, setAdmin] = useState<Admin | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [enderecos, setEnderecos] = useState<Endereco[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const [editando, setEditando] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [mpStatus, setMpStatus] = useState<string>('');
   const [fotoTimestamp, setFotoTimestamp] = useState<number>(Date.now());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     const fetchPerfil = async () => {
       try {
-        const res = await fetch(`${getBackendUrl()}/usuario_jwt/`, {
-          credentials: "include",
-        });
+        const res = await fetch(`${getBackendUrl()}/usuario_jwt/`, { credentials: "include" });
         if (!res.ok) throw new Error("Não autenticado");
         const user = await res.json();
-        if (user.role !== "Psicologo") {
+        if (user.role !== "Admin") {
           router.push("/login");
           return;
         }
-        const res2 = await fetch(`${getBackendUrl()}/api/users/${user.id}/`, {
-          credentials: "include",
-        });
-        if (!res2.ok) throw new Error("Erro ao buscar dados do psicólogo");
+        const res2 = await fetch(`${getBackendUrl()}/api/users/${user.id}/`, { credentials: "include" });
+        if (!res2.ok) throw new Error("Erro ao buscar dados do admin");
         const data = await res2.json();
-        setPsicologo(data);
+        setAdmin(data);
         setForm(data);
         setEnderecos(data.enderecos || []);
-        // Checar status Mercado Pago
-        if (data.mp_user_id && data.mp_access_token) {
-          setMpStatus('active');
-        } else {
-          setMpStatus('pending');
-        }
       } catch (err: any) {
         setErro(err?.message || 'Erro ao carregar perfil.');
       } finally {
@@ -81,16 +63,6 @@ export default function PerfilPsicologo() {
     };
     fetchPerfil();
   }, [router]);
-
-  // Exibe toast de sucesso/erro ao retornar do OAuth Mercado Pago
-  useEffect(() => {
-    const mpStatus = searchParams?.get('mp_status');
-    if (mpStatus === 'success') {
-      toast.success('Conta Mercado Pago vinculada com sucesso!');
-    } else if (mpStatus === 'error') {
-      toast.error('Erro ao vincular conta Mercado Pago. Tente novamente.');
-    }
-  }, [searchParams]);
 
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -127,27 +99,20 @@ export default function PerfilPsicologo() {
     toast.info('Edição cancelada. Nenhuma alteração foi salva.');
   };
   const handleSave = async () => {
-    if (!psicologo) return;
+    if (!admin) return;
     try {
-      // Envia o campo 'foto' normalmente se for string (path), nunca arquivo
       const formToSend = { ...form };
       if (typeof formToSend.foto !== 'string') {
         delete formToSend.foto;
       }
-      const res = await fetch(`${getBackendUrl()}/api/users/${psicologo.id}/`, {
+      const res = await fetch(`${getBackendUrl()}/api/users/${admin.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(formToSend),
       });
       if (!res.ok) throw new Error('Erro ao salvar');
-      // Normaliza o campo tipo para minúsculo antes de enviar
-      const tipoNormalizado = (form.tipo || '').toLowerCase();
-      let tipoValido = tipoNormalizado;
-      if (!["residencial", "comercial", "consultorio"].includes(tipoNormalizado)) {
-        tipoValido = "residencial";
-      }
-      // Atualiza ou cria endereço
+      // Endereço
       if (enderecos.length > 0) {
         const enderecoPayload = {
           logradouro: form.logradouro,
@@ -157,9 +122,9 @@ export default function PerfilPsicologo() {
           cidade: form.cidade,
           estado: form.estado,
           cep: form.cep,
-          tipo: tipoValido,
+          tipo: form.tipo,
         };
-        const resEndereco = await fetch(`${getBackendUrl()}/api/enderecos_usuario/${psicologo.id}/`, {
+        const resEndereco = await fetch(`${getBackendUrl()}/api/enderecos_usuario/${admin.id}/`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -168,7 +133,7 @@ export default function PerfilPsicologo() {
         if (!resEndereco.ok) throw new Error('Erro ao salvar endereço');
       } else {
         const enderecoPayload = {
-          usuario: psicologo.id,
+          usuario: admin.id,
           logradouro: form.logradouro,
           numero: form.numero,
           complemento: form.complemento,
@@ -176,9 +141,9 @@ export default function PerfilPsicologo() {
           cidade: form.cidade,
           estado: form.estado,
           cep: form.cep,
-          tipo: tipoValido,
+          tipo: form.tipo,
         };
-        const resEndereco = await fetch(`${getBackendUrl()}/api/enderecos_usuario/${psicologo.id}/`, {
+        const resEndereco = await fetch(`${getBackendUrl()}/api/enderecos_usuario/${admin.id}/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -186,7 +151,7 @@ export default function PerfilPsicologo() {
         });
         if (!resEndereco.ok) throw new Error('Erro ao atualizar endereço');
       }
-      setPsicologo({ ...psicologo, ...formToSend });
+      setAdmin({ ...admin, ...formToSend });
       setEditando(false);
       toast.success('Dados atualizados com sucesso!');
     } catch (err: any) {
@@ -196,22 +161,20 @@ export default function PerfilPsicologo() {
 
   // Função para upload de nova foto
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!psicologo || !e.target.files || e.target.files.length === 0) return;
+    if (!admin || !e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     const formData = new FormData();
     formData.append('foto', file);
     setUploading(true);
     try {
-      // Envia a foto para o endpoint dedicado (POST)
-      const res = await fetch(`${getBackendUrl()}/api/users/${psicologo.id}/upload_foto/`, {
+      const res = await fetch(`${getBackendUrl()}/api/users/${admin.id}/upload_foto/`, {
         method: 'POST',
         credentials: 'include',
         body: formData,
       });
       if (!res.ok) throw new Error('Erro ao atualizar foto');
-      // Atualiza o perfil após upload
       const data = await res.json();
-      setPsicologo(data);
+      setAdmin(data);
       setForm((prev) => ({ ...prev, foto: data.foto }));
       setFotoTimestamp(Date.now());
       toast.success('Foto atualizada com sucesso!');
@@ -222,50 +185,9 @@ export default function PerfilPsicologo() {
     }
   };
 
-  // Função para onboarding Mercado Pago
-  // Eu envio o user_id como query param para o backend incluir no state do OAuth
-  const handleMercadoPagoOnboarding = async () => {
-    if (!psicologo) return;
-    try {
-      const res = await fetch(`${getBackendUrl()}/api/mercadopago/oauth/?user_id=${psicologo.id}`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-      const data = await res.json();
-      if (data.auth_url) {
-        window.location.href = data.auth_url;
-      } else {
-        toast.error(data.error || 'Erro ao iniciar onboarding Mercado Pago.');
-      }
-    } catch (err) {
-      toast.error('Erro ao conectar com o Mercado Pago.');
-    }
-  };
-
-  // Função para criar pagamento Mercado Pago (checkout)
-  const handleMercadoPagoCheckout = async () => {
-    if (!psicologo) return;
-    try {
-      const res = await fetch(`${getBackendUrl()}/api/mercadopago/checkout/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ user_id: psicologo.id }),
-      });
-      const data = await res.json();
-      if (data.checkout_url) {
-        window.location.href = data.checkout_url;
-      } else {
-        toast.error(data.error || 'Erro ao criar pagamento Mercado Pago.');
-      }
-    } catch (err) {
-      toast.error('Erro ao conectar com o Mercado Pago.');
-    }
-  };
-
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
   if (erro) return <div className="p-8 text-center text-red-600">{erro}</div>;
-  if (!psicologo) return <div className="p-8 text-center">Usuário não encontrado.</div>;
+  if (!admin) return <div className="p-8 text-center">Usuário não encontrado.</div>;
 
   const renderInputOrText = (name: string, label: string, type = 'text') => (
     <div className="flex flex-col gap-1">
@@ -311,10 +233,10 @@ export default function PerfilPsicologo() {
   return (
     <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-2xl p-10 mt-12 border border-gray-200">
       <h1 className="text-4xl font-extrabold text-center text-indigo-700 mb-10 tracking-tight">Meu Perfil</h1>
-      {psicologo?.foto ? (
+      {admin?.foto ? (
         <div className="flex justify-center mb-6 relative group">
           <img
-            src={psicologo.foto ? `${getBackendUrl()}/${psicologo.foto}?t=${fotoTimestamp}` : "/img/logo.png"}
+            src={admin.foto ? `${getBackendUrl()}/${admin.foto}?t=${fotoTimestamp}` : "/img/logo.png"}
             alt="Foto de perfil"
             className="w-32 h-32 rounded-full object-cover border-4 border-indigo-200 shadow cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
@@ -359,15 +281,8 @@ export default function PerfilPsicologo() {
         <div className="flex-1 space-y-4 bg-indigo-50 rounded-xl p-6 shadow-sm border border-indigo-100">
           <h2 className="text-lg font-bold text-indigo-700 mb-2">Dados Pessoais</h2>
           {renderInputOrText('nome', 'Nome')}
+          {renderInputOrText('email', 'Email', 'email')}
           {renderInputOrText('telefone', 'Telefone')}
-        </div>
-        {/* Dados Profissionais */}
-        <div className="flex-1 space-y-4 bg-indigo-50 rounded-xl p-6 shadow-sm border border-indigo-100">
-          <h2 className="text-lg font-bold text-indigo-700 mb-2">Dados Profissionais</h2>
-          {renderInputOrText('crp', 'CRP')}
-          {renderInputOrText('especialidade', 'Especialidade')}
-          {renderInputOrText('valor_consulta', 'Valor da Consulta (R$)', 'number')}
-          {/* Campo Mercado Pago pode ser adicionado se necessário */}
         </div>
       </div>
       {/* Ações */}
@@ -437,31 +352,6 @@ export default function PerfilPsicologo() {
         </div>
       </div>
       <ToastContainer position="top-center" autoClose={3000} />
-
-      {/* Mercado Pago - status e ação */}
-      <div className="mt-8 flex flex-col items-center gap-3">
-        {mpStatus === 'active' ? (
-          <>
-            <span className="px-4 py-2 rounded bg-green-100 text-green-700 font-semibold">Conta Mercado Pago ativa</span>
-            <button
-              onClick={handleMercadoPagoCheckout}
-              className="mt-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold shadow"
-            >
-              Receber pagamento via Mercado Pago
-            </button>
-          </>
-        ) : (
-          <>
-            <span className="px-4 py-2 rounded bg-yellow-100 text-yellow-700 font-semibold">Conta Mercado Pago pendente</span>
-            <button
-              onClick={handleMercadoPagoOnboarding}
-              className="mt-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold shadow"
-            >
-              Ativar recebimento Mercado Pago
-            </button>
-          </>
-        )}
-      </div>
     </div>
   );
 }

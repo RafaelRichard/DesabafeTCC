@@ -96,9 +96,9 @@ export default function AreaDoAdmin() {
                         <FiClipboard size={20} />
                         <span>Gerenciar Consultas</span>
                     </Link>
-                    <Link href="/admin/configuracoes" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
+                    <Link href="/meu_perfil_admin" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
                         <FiSettings size={20} />
-                        <span>Configurações</span>
+                        <span>Meu Perfil</span>
                     </Link>
                     {/* Botão para a listagem de cadastros */}
                     <Link href="/admin/listagem" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
@@ -140,18 +140,18 @@ export default function AreaDoAdmin() {
                             <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
                                 <h3 className="text-xl font-semibold text-gray-700 mb-4">Consultas Pendentes</h3>
                                 <p className="text-gray-500">Gerencie as consultas pendentes ou confirmadas.</p>
-                                <Link href="/admin/consultas">
+                                <Link href="/consultas_admin">
                                     <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
                                         Ver Consultas
                                     </button>
                                 </Link>
                             </div>
                             <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
-                                <h3 className="text-xl font-semibold text-gray-700 mb-4">Configurações do Sistema</h3>
-                                <p className="text-gray-500">Ajuste configurações gerais da plataforma.</p>
-                                <Link href="/admin/configuracoes">
+                                <h3 className="text-xl font-semibold text-gray-700 mb-4">Meu Perfil</h3>
+                                <p className="text-gray-500">Gerencie seus dados de administrador e foto de perfil.</p>
+                                <Link href="/meu_perfil_admin">
                                     <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
-                                        Acessar Configurações
+                                        Acessar Meu Perfil
                                     </button>
                                 </Link>
                             </div>
