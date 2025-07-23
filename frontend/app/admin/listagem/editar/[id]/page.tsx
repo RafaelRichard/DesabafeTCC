@@ -75,10 +75,10 @@ export default function EditarUsuario() {
     if (!user) return <div className="text-center text-red-500 py-16 text-lg">Usuário não encontrado.</div>;
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-indigo-100 py-12 px-6">
-            <div className="max-w-3xl mx-auto bg-white p-10 rounded-2xl shadow-xl border border-gray-200">
-                <h1 className="text-4xl font-bold text-center text-indigo-700 mb-8">
-                    Editar Usuário
+        <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-white to-indigo-200 py-14 px-6">
+            <div className="max-w-3xl mx-auto bg-white/70 backdrop-blur-md border border-indigo-100 p-10 rounded-3xl shadow-2xl">
+                <h1 className="text-4xl font-extrabold text-center text-indigo-800 mb-10">
+                    ✏️ Editar Usuário
                 </h1>
 
                 {error && (
@@ -87,53 +87,53 @@ export default function EditarUsuario() {
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label className="block mb-1 text-gray-700 font-medium">Nome</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Nome</label>
                             <input
                                 type="text"
                                 name="nome"
                                 value={user.nome || ''}
                                 onChange={handleChange}
                                 placeholder="Nome completo"
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                             />
                         </div>
                         <div>
-                            <label className="block mb-1 text-gray-700 font-medium">Email</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
                             <input
                                 type="email"
                                 name="email"
                                 value={user.email || ''}
                                 onChange={handleChange}
                                 placeholder="Email"
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                             />
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label className="block mb-1 text-gray-700 font-medium">CPF</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">CPF</label>
                             <input
                                 type="text"
                                 name="cpf"
                                 value={user.cpf || ''}
                                 onChange={handleChange}
                                 placeholder="000.000.000-00"
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                             />
                         </div>
                         <div>
-                            <label className="block mb-1 text-gray-700 font-medium">Telefone</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Telefone</label>
                             <input
                                 type="text"
                                 name="telefone"
                                 value={user.telefone || ''}
                                 onChange={handleChange}
                                 placeholder="(00) 00000-0000"
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                             />
                         </div>
                     </div>
@@ -142,13 +142,13 @@ export default function EditarUsuario() {
                         <button
                             type="button"
                             onClick={handleCancel}
-                            className="w-full md:w-auto px-6 py-3 rounded-lg border border-gray-400 text-gray-700 hover:bg-gray-100 transition"
+                            className="w-full md:w-auto px-6 py-3 rounded-xl border border-gray-400 text-gray-700 bg-white hover:bg-gray-100 transition"
                         >
                             Cancelar
                         </button>
                         <button
                             type="submit"
-                            className="w-full md:w-auto px-6 py-3 rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition"
+                            className="w-full md:w-auto px-6 py-3 rounded-xl bg-teal-600 text-white hover:bg-teal-700 transition shadow-md"
                         >
                             Salvar Alterações
                         </button>

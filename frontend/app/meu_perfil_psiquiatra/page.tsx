@@ -41,6 +41,7 @@ export default function PerfilPsiquiatra() {
   const [erro, setErro] = useState('');
   const [editando, setEditando] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [fotoTimestamp, setFotoTimestamp] = useState<number>(Date.now());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -196,7 +197,8 @@ export default function PerfilPsiquiatra() {
     }
   };
 
-  // Função para upload de nova foto
+  // Função para upload de nova foto (corrigida e única)
+  // (Removida duplicidade de handleFotoChange)
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!psiquiatra || !e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
@@ -204,16 +206,17 @@ export default function PerfilPsiquiatra() {
     formData.append('foto', file);
     setUploading(true);
     try {
-      const res = await fetch(`${getBackendUrl()}/api/users/${psiquiatra.id}/`, {
-        method: 'PUT',
+      // Envia a foto para o endpoint dedicado (POST)
+      const res = await fetch(`${getBackendUrl()}/api/users/${psiquiatra.id}/upload_foto/`, {
+        method: 'POST',
         credentials: 'include',
         body: formData,
       });
       if (!res.ok) throw new Error('Erro ao atualizar foto');
       // Atualiza o perfil após upload
-      const res2 = await fetch(`${getBackendUrl()}/api/users/${psiquiatra.id}/`, { credentials: 'include' });
-      const data = await res2.json();
+      const data = await res.json();
       setPsiquiatra(data);
+      setFotoTimestamp(Date.now());
       toast.success('Foto atualizada com sucesso!');
     } catch (err) {
       toast.error('Erro ao atualizar foto.');
@@ -271,7 +274,7 @@ export default function PerfilPsiquiatra() {
       <h1 className="text-4xl font-extrabold text-center text-indigo-700 mb-10 tracking-tight">Meu Perfil</h1>
       <div className="flex justify-center mb-6 relative group">
         <img
-          src={psiquiatra.foto ? `${getBackendUrl()}${psiquiatra.foto}` : "/img/logo.png"}
+          src={psiquiatra.foto ? `${getBackendUrl()}/${psiquiatra.foto}?t=${fotoTimestamp}` : "/img/logo.png"}
           alt="Foto de perfil"
           className="w-32 h-32 rounded-full object-cover border-4 border-indigo-200 shadow cursor-pointer"
           onClick={() => fileInputRef.current?.click()}

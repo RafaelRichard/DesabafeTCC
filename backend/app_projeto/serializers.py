@@ -9,7 +9,12 @@ class UsuarioSerializer(serializers.ModelSerializer):
 
     def get_foto(self, obj):
         if obj.foto:
-            return obj.foto.name  # sempre retorna o caminho relativo
+            # Retorna o path relativo a partir de 'usuarios_fotos/'
+            path = obj.foto.name
+            idx = path.find('usuarios_fotos/')
+            if idx != -1:
+                return f"media/{path[idx:]}"
+            return f"media/{path.lstrip('/')}"
         return None
 
     class Meta:
@@ -24,9 +29,15 @@ class UsuarioDetailSerializer(UsuarioSerializer):
 
 
 class AgendamentoSerializer(serializers.ModelSerializer):
+    # Adicionando os campos de nome do psiquiatra, psicólogo e paciente
+    usuario_nome = serializers.CharField(source='usuario.nome', read_only=True)
+    psiquiatra_nome = serializers.CharField(source='psiquiatra.nome', read_only=True)
+    psicologo_nome = serializers.CharField(source='psicologo.nome', read_only=True)
+
     class Meta:
         model = Agendamento
-        fields = '__all__'
+        fields = ['id', 'data_hora', 'status', 'link_consulta', 'observacoes', 'data_criacao', 
+                  'usuario', 'usuario_nome', 'psiquiatra', 'psiquiatra_nome', 'psicologo', 'psicologo_nome']
 
 class AgendamentoHistoricoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -40,6 +51,17 @@ class EnderecoSerializer(serializers.ModelSerializer):
 
 class UsuarioComEnderecoSerializer(serializers.ModelSerializer):
     enderecos = EnderecoSerializer(many=True)
+    foto = serializers.SerializerMethodField()
+
+    def get_foto(self, obj):
+        if obj.foto:
+            # Retorna o path relativo a partir de 'usuarios_fotos/'
+            path = obj.foto.name
+            idx = path.find('usuarios_fotos/')
+            if idx != -1:
+                return f"media/{path[idx:]}"
+            return f"media/{path.lstrip('/')}"
+        return None
 
     class Meta:
         model = Usuario

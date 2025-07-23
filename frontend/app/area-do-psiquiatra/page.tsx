@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getBackendUrl } from '../utils/backend';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FiUser, FiClipboard, FiSettings } from 'react-icons/fi';
@@ -73,7 +74,7 @@ export default function AreaPsiquiatra() {
             <div className="flex flex-col w-full lg:w-72 bg-indigo-800 text-white h-full p-6 lg:h-auto shadow-lg items-center">
                 {foto ? (
                     <img
-                        src={`http://localhost:8000${foto}`}
+                        src={foto ? `${getBackendUrl()}/${foto}` : "/img/logo.png"}
                         alt="Foto de perfil"
                         className="w-24 h-24 rounded-full object-cover border-4 border-white mb-4 shadow"
                     />

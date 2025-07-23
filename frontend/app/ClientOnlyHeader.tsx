@@ -132,7 +132,7 @@ const ClientOnlyHeader = () => {
           {/* Desktop menu */}
           <div className="hidden md:flex items-center space-x-6">
             <Link href="/Sobre" className="text-sm text-gray-600 hover:text-purple-600 font-medium">Sobre Nós</Link>
-            <Link href="/planos" className="text-sm text-gray-600 hover:text-purple-600 font-medium">Planos</Link>
+            {/* <Link href="/planos" className="text-sm text-gray-600 hover:text-purple-600 font-medium">Planos</Link> */}
             <div className="relative">
               <button
                 onClick={() => setDropdownOpen((prev) => !prev)}
@@ -160,7 +160,7 @@ const ClientOnlyHeader = () => {
         {mobileMenuOpen && (
           <div className="md:hidden mt-4 bg-white/95 rounded-2xl shadow-lg p-6 flex flex-col gap-4 animate-fade-in">
             <Link href="/Sobre" className="text-base text-gray-700 hover:text-purple-600 font-medium" onClick={() => setMobileMenuOpen(false)}>Sobre Nós</Link>
-            <Link href="/planos" className="text-base text-gray-700 hover:text-purple-600 font-medium" onClick={() => setMobileMenuOpen(false)}>Planos</Link>
+            {/* <Link href="/planos" className="text-base text-gray-700 hover:text-purple-600 font-medium" onClick={() => setMobileMenuOpen(false)}>Planos</Link> */}
             <div className="relative">
               <button
                 onClick={() => setDropdownOpen((prev) => !prev)}

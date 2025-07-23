@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getBackendUrl } from '../utils/backend';
 import { useRouter } from 'next/navigation';
 
 interface Psiquiatra {
@@ -108,7 +109,7 @@ export default function Psiquiatria() {
                   style={{ minHeight: 340 }}
                 >
                   <img
-                    src={psiquiatra.foto ? `http://localhost:8000/media/${psiquiatra.foto.replace(/^\/?media\//, '')}` : "/img/logo.png"}
+                    src={psiquiatra.foto ? `${getBackendUrl()}/${psiquiatra.foto}` : "/img/logo.png"}
                     alt={`Foto de ${psiquiatra.nome}`}
                     className="w-24 h-24 rounded-full object-cover mb-4 border-2 border-indigo-100"
                   />

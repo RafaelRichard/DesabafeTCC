@@ -74,21 +74,21 @@ export default function Listagem() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-indigo-100 px-6 py-12">
-            <h1 className="text-4xl md:text-5xl font-bold text-center text-indigo-700 mb-10">
-                Usuários do Sistema
+        <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-white to-indigo-200 px-6 py-12">
+            <h1 className="text-5xl font-extrabold text-center text-indigo-800 mb-12 tracking-tight">
+                Painel de Usuários
             </h1>
 
             {/* Tabs */}
-            <div className="flex flex-wrap justify-center gap-4 mb-8">
+            <div className="flex flex-wrap justify-center gap-4 mb-10">
                 {roles.map((role) => (
                     <button
                         key={role}
                         onClick={() => setActiveRole(role)}
-                        className={`px-5 py-2 rounded-full font-medium border transition-all
-                ${activeRole === role
-                                ? 'bg-indigo-600 text-white border-indigo-600'
-                                : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-100'
+                        className={`px-6 py-2.5 rounded-full font-semibold border backdrop-blur-md shadow-md transition
+                        ${activeRole === role
+                                ? 'bg-indigo-700 text-white border-indigo-700'
+                                : 'bg-white/60 text-indigo-700 border-indigo-300 hover:bg-indigo-100'
                             }`}
                     >
                         {role} ({groupedUsers[role].length})
@@ -96,47 +96,40 @@ export default function Listagem() {
                 ))}
             </div>
 
-            {/* Listagem por Aba Ativa */}
+            {/* Lista por Aba */}
             {activeRole && (
                 <div>
-                    <h2 className="text-2xl font-bold text-indigo-800 mb-6 capitalize text-center">
+                    <h2 className="text-3xl font-semibold text-center text-indigo-700 mb-8 capitalize">
                         {activeRole}
                     </h2>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-8">
                         {groupedUsers[activeRole].map((user) => (
                             <div
                                 key={user.id}
-                                className="bg-gray-200 border border-gray-200 rounded-2xl shadow-md hover:shadow-lg transition-all"
+                                className="bg-white/60 border border-indigo-100 rounded-3xl shadow-xl p-6 backdrop-blur-md transition-all hover:scale-[1.02] hover:shadow-2xl"
                             >
-                                <div className="p-6 space-y-3">
-                                    <h3 className="text-lg font-bold text-gray-800">{user.name}</h3>
+                                <div className="space-y-4">
+                                    <h3 className="text-xl font-bold text-gray-800">{user.name}</h3>
                                     <div className="text-sm text-gray-600 space-y-1">
-                                        <p>
-                                            <strong>Email:</strong> {user.email}
-                                        </p>
-                                        <p>
-                                            <strong>CPF:</strong> {user.cpf}
-                                        </p>
-                                        <p>
-                                            <strong>Telefone:</strong> {user.telefone}
-                                        </p>
+                                        <p><span className="font-medium text-indigo-600">Email:</span> {user.email}</p>
+                                        <p><span className="font-medium text-indigo-600">CPF:</span> {user.cpf}</p>
+                                        <p><span className="font-medium text-indigo-600">Telefone:</span> {user.telefone}</p>
                                     </div>
                                 </div>
 
-                                <div className="flex justify-between items-center border-t px-6 py-4 bg-gray-300 rounded-b-2xl">
+                                <div className="flex justify-between items-center border-t border-indigo-100 pt-4 mt-4">
                                     <button
                                         onClick={() => handleEdit(user.id)}
-                                        className="text-sm bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg transition"
+                                        className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition"
                                     >
-                                        Editar
+                                        ✏️ Editar
                                     </button>
-
                                     <button
                                         onClick={() => handleDelete(user.id)}
-                                        className="text-sm bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg"
+                                        className="text-xs bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
                                     >
-                                        Excluir
+                                        🗑️ Excluir
                                     </button>
                                 </div>
                             </div>

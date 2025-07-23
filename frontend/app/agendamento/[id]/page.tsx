@@ -1,6 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { Calendar, momentLocalizer, Views } from 'react-big-calendar';
+import moment from 'moment';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useParams, useRouter } from 'next/navigation';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -33,6 +36,35 @@ export default function Agendamento() {
   const [profissional, setProfissional] = useState<Profissional | null>(null);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [dataHora, setDataHora] = useState('');
+  const [dataSelecionada, setDataSelecionada] = useState<Date>(new Date());
+  const [horariosOcupados, setHorariosOcupados] = useState<string[]>([]);
+  const [loadingHorarios, setLoadingHorarios] = useState(false);
+  // Buscar horários ocupados ao mudar data/profissional
+  useEffect(() => {
+    async function fetchHorarios() {
+      if (!profissional || !dataSelecionada) return;
+      setLoadingHorarios(true);
+      const tipo = profissional.crm ? 'psiquiatra' : 'psicologo';
+      const dataStr = moment(dataSelecionada).format('YYYY-MM-DD');
+      try {
+        const url = `${getBackendUrl()}/api/horarios_ocupados/?profissional_id=${profissional.id}&tipo=${tipo}&data=${dataStr}`;
+        const res = await fetch(url, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          console.log('Horarios ocupados para', url, ':', data);
+          setHorariosOcupados(data);
+        } else {
+          setHorariosOcupados([]);
+        }
+      } catch (err) {
+        setHorariosOcupados([]);
+        console.error('Erro ao buscar horarios ocupados:', err);
+      } finally {
+        setLoadingHorarios(false);
+      }
+    }
+    fetchHorarios();
+  }, [profissional, dataSelecionada]);
   const [observacoes, setObservacoes] = useState('');
   const [status, setStatus] = useState<'pendente' | 'confirmado' | 'cancelado'>('pendente');
   const [linkConsulta, setLinkConsulta] = useState('');
@@ -108,6 +140,27 @@ export default function Agendamento() {
       return;
     }
 
+    // Revalida o horário antes de enviar
+    setLoadingHorarios(true);
+    const tipo = profissional.crm ? 'psiquiatra' : 'psicologo';
+    const dataStr = moment(dataSelecionada).format('YYYY-MM-DD');
+    let horariosAtualizados: string[] = [];
+    try {
+      const res = await fetch(`/api/horarios_ocupados/?profissional_id=${profissional.id}&tipo=${tipo}&data=${dataStr}`);
+      if (res.ok) {
+        horariosAtualizados = await res.json();
+      }
+    } catch {}
+    setLoadingHorarios(false);
+    const slotEscolhido = moment(dataHora).format('HH:mm');
+    if (horariosAtualizados.includes(slotEscolhido)) {
+      toast.error('Este horário acabou de ser ocupado. Por favor, escolha outro.');
+      // Atualiza a lista de horários ocupados na tela
+      setHorariosOcupados(horariosAtualizados);
+      setDataHora('');
+      return;
+    }
+
     // O backend espera: usuario, psiquiatra, data_hora, status, observacoes
     const agendamento = {
       usuario: usuario.id, // campo correto para paciente
@@ -151,6 +204,25 @@ export default function Agendamento() {
   const handlePagamento = async () => {
     if (!usuario || !profissional) {
       toast.error('Dados insuficientes para pagamento.');
+      return;
+    }
+    // Revalida o horário antes de enviar
+    setLoadingHorarios(true);
+    const tipo = profissional.crm ? 'psiquiatra' : 'psicologo';
+    const dataStr = moment(dataSelecionada).format('YYYY-MM-DD');
+    let horariosAtualizados: string[] = [];
+    try {
+      const res = await fetch(`/api/horarios_ocupados/?profissional_id=${profissional.id}&tipo=${tipo}&data=${dataStr}`);
+      if (res.ok) {
+        horariosAtualizados = await res.json();
+      }
+    } catch {}
+    setLoadingHorarios(false);
+    const slotEscolhido = moment(dataHora).format('HH:mm');
+    if (horariosAtualizados.includes(slotEscolhido)) {
+      toast.error('Este horário acabou de ser ocupado. Por favor, escolha outro.');
+      setHorariosOcupados(horariosAtualizados);
+      setDataHora('');
       return;
     }
     const valorConsulta = profissional.valor_consulta ? Number(profissional.valor_consulta) : 200;
@@ -230,16 +302,63 @@ export default function Agendamento() {
 
       {/* Formulário */}
       <form onSubmit={handleAgendar} className="space-y-8">
-        {/* Data e Hora */}
+        {/* Data e Hora (Calendário) */}
         <div className="flex flex-col">
-          <label className="font-medium text-gray-700">Data e Hora</label>
+          <label className="font-medium text-gray-700 mb-2">Selecione o dia e horário</label>
           <input
-            type="datetime-local"
-            value={dataHora}
-            onChange={(e) => setDataHora(e.target.value)}
-            required
-            className="w-full border border-gray-300 p-4 rounded-lg mt-2 focus:outline-none focus:ring-2 focus:ring-indigo-600 transition duration-200"
+            type="date"
+            value={moment(dataSelecionada).format('YYYY-MM-DD')}
+            onChange={e => setDataSelecionada(new Date(e.target.value + 'T00:00:00'))}
+            className="w-60 border border-gray-300 p-2 rounded mb-4"
+            min={moment().format('YYYY-MM-DD')}
           />
+          <div style={{ height: 400 }}>
+            {loadingHorarios ? (
+              <div className="flex items-center justify-center h-40">
+                <span className="text-indigo-600 font-semibold animate-pulse">Carregando horários disponíveis...</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-4">
+                {Array.from({ length: 20 }, (_, i) => {
+                  const hour = 8 + Math.floor(i / 2);
+                  const minute = i % 2 === 0 ? 0 : 30;
+                  const slot = moment(dataSelecionada).set({ hour, minute, second: 0, millisecond: 0 });
+                  const slotStr = slot.format('HH:mm');
+                  const slotFull = slot.format('YYYY-MM-DDTHH:mm');
+                  const ocupado = horariosOcupados.some(h => slot.format('HH:mm') === h);
+                  return (
+                    <button
+                      key={slotStr}
+                      type="button"
+                      disabled={ocupado || loadingHorarios}
+                      onClick={() => {
+                        if (ocupado || loadingHorarios) return;
+                        setDataHora(slotFull);
+                        toast.success('Horário selecionado: ' + slot.format('DD/MM/YYYY HH:mm'));
+                      }}
+                      className={`w-full py-2 rounded font-semibold border text-sm transition-all duration-150
+                        ${ocupado
+                          ? 'bg-red-100 text-red-600 border-red-300 cursor-not-allowed opacity-70'
+                          : (dataHora === slotFull
+                              ? 'bg-green-600 text-white border-green-700 shadow-lg scale-105'
+                              : 'bg-white text-gray-800 border-gray-300 hover:bg-green-50 hover:border-green-400')}
+                      `}
+                      style={{ minWidth: 0 }}
+                    >
+                      {slot.format('HH:mm')}<br/>{ocupado ? <span className="text-xs font-normal">Indisponível</span> : <span className="text-xs font-normal text-green-700">Disponível</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {dataHora && (
+            <div className="mt-2 text-green-700 font-semibold">Horário escolhido: {moment(dataHora).format('DD/MM/YYYY HH:mm')}</div>
+          )}
+          <div className="flex justify-between mt-2 text-xs text-gray-500">
+            <span>Clique em um horário livre para selecionar</span>
+            <span>Horários em vermelho estão ocupados</span>
+          </div>
         </div>
 
         {/* Status */}
@@ -284,12 +403,14 @@ export default function Agendamento() {
             type="button"
             onClick={handlePagamento}
             className="bg-green-600 text-white px-10 py-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-600 transition duration-300 mr-4"
+            disabled={!dataHora || loadingHorarios || horariosOcupados.includes(moment(dataHora).format('HH:mm'))}
           >
             Agendar e Pagar Consulta
           </button>
           <button
             type="submit"
             className="bg-indigo-600 text-white px-10 py-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-600 transition duration-300"
+            disabled={!dataHora || loadingHorarios || horariosOcupados.includes(moment(dataHora).format('HH:mm'))}
           >
             Confirmar Agendamento (sem pagamento)
           </button>
