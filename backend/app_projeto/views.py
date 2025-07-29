@@ -114,10 +114,10 @@ def cadastrar_usuario(request):
             status=status,
             role=role,  # Adiciona o campo role corretamente
             crm=data.get('crm') if role == 'Psiquiatra' else None,  # Atribui o CRM somente se for psiquiatra
-            crp=data.get('crp') if role == 'Psicologo' else None,  # Atribui o CRP somente se for psiquiatra
+            crp=data.get('crp') if role == 'Psicologo' else None,  # Atribui o CRP somente se for psicólogo
             especialidade=data.get('especialidade') if role in ['Psiquiatra', 'Psicologo'] else None,
             valor_consulta=valor_consulta,
-            foto=foto,  # Agora aceita arquivo
+            foto=foto if foto else None,
         )
 
         # Salva o usuário no banco de dados
@@ -161,7 +161,9 @@ def login_usuario(request):
         except Usuario.DoesNotExist:
             return JsonResponse({'error': 'Usuário não encontrado'}, status=404)
 
-        if check_password(password, usuario.senha):  
+        if check_password(password, usuario.senha):
+            if usuario.status.strip().lower() != 'ativo':
+                return JsonResponse({'error': 'Usuário inativo'}, status=403)
             refresh = RefreshToken.for_user(usuario)
             token = str(refresh.access_token)
 
@@ -178,7 +180,6 @@ def login_usuario(request):
                 secure=True,  # True em produção
                 samesite='None'
             )
-            
             return response
         else:
             return JsonResponse({'error': 'Credenciais inválidas'}, status=401)
@@ -374,6 +375,9 @@ def editar_usuario(request, id):
             usuario.cpf = data.get('cpf', usuario.cpf)
             usuario.telefone = data.get('telefone', usuario.telefone)
             usuario.role = data.get('role', usuario.role)
+            novo_status = data.get('status', usuario.status)
+            print(f"[DEBUG] Status recebido (form): {novo_status}")
+            usuario.status = novo_status
             if usuario.role == 'Psiquiatra':
                 usuario.crm = data.get('crm', usuario.crm)
                 usuario.crp = None
@@ -391,6 +395,7 @@ def editar_usuario(request, id):
             # usuario.stripe_account_id = data.get('stripe_account_id', usuario.stripe_account_id)
             usuario.save()
             usuario.refresh_from_db()  # Garante que o path da foto está atualizado
+            print(f"[DEBUG] Status salvo no banco (json): {usuario.status}")
             serializer = UsuarioComEnderecoSerializer(usuario)
             return JsonResponse(serializer.data, status=200)
         else:
@@ -401,6 +406,9 @@ def editar_usuario(request, id):
             usuario.cpf = data.get('cpf', usuario.cpf)
             usuario.telefone = data.get('telefone', usuario.telefone)
             usuario.role = data.get('role', usuario.role)
+            novo_status = data.get('status', usuario.status)
+            print(f"[DEBUG] Status recebido (json): {novo_status}")
+            usuario.status = novo_status
             if usuario.role == 'Psiquiatra':
                 usuario.crm = data.get('crm', usuario.crm)
                 usuario.crp = None
@@ -426,12 +434,11 @@ def editar_usuario(request, id):
                 usuario.foto = data.get('foto', usuario.foto)
             usuario.save()
             usuario.refresh_from_db()  # Garante que o path da foto está atualizado
+            print(f"[DEBUG] Status salvo no banco (form): {usuario.status}")
             serializer = UsuarioComEnderecoSerializer(usuario)
             return JsonResponse(serializer.data, status=200)
 
     return JsonResponse({'message': 'Método não permitido'}, status=405)
-
-
 
 @csrf_exempt  # Se necessário, para desabilitar a verificação de CSRF
 def excluir_usuario(request, id):
@@ -541,10 +548,18 @@ def criar_agendamento(request):
         if not inicio:
             return Response({'error': 'data_hora inválida.'}, status=400)
         fim = inicio + timedelta(minutes=30)
+
         # Descobre profissional e campo correto
-        profissional_id = data.get('psiquiatra') or data.get('psicologo')
+        profissional_id = None
+        if data.get('psiquiatra'):
+            profissional_id = data.get('psiquiatra')
+            data['psicologo'] = None
+        elif data.get('psicologo'):
+            profissional_id = data.get('psicologo')
+            data['psiquiatra'] = None
         if not profissional_id:
             return Response({'error': 'Profissional não informado.'}, status=400)
+
         # Busca conflitos (pendente ou confirmado)
         from django.db.models import Q
         conflito = Agendamento.objects.filter(
@@ -802,7 +817,6 @@ def criar_pagamento_mercadopago(request):
         }
     }
     preference_response = sdk.preference().create(preference_data)
-    print('Resposta Mercado Pago:', preference_response)  # <-- Adiciona log detalhado
     if preference_response.get('status') == 201:
         return JsonResponse({'checkout_url': preference_response.get('response', {}).get('init_point')})
     else:

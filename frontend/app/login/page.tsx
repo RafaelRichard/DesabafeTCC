@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 export default function Login() {
     const [email, setEmail] = useState('');
@@ -34,6 +36,7 @@ export default function Login() {
     const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setMessage('');
+        toast.dismiss();
 
         const csrfToken = getCookie('csrftoken');
         if (!csrfToken) {
@@ -55,6 +58,18 @@ export default function Login() {
 
             if (!response.ok) {
                 const errorData = await response.json();
+                if (errorData.error === 'Usuário inativo') {
+                    toast.warn('Usuário inativo! Solicite ativação ao administrador.', {
+                        position: 'top-center',
+                        autoClose: 4000,
+                        theme: 'colored',
+                    });
+                } else {
+                    toast.error(errorData.error || 'Credenciais inválidas.', {
+                        position: 'top-center',
+                        autoClose: 4000,
+                    });
+                }
                 setMessage(errorData.error || 'Credenciais inválidas.');
                 return;
             }
@@ -109,66 +124,69 @@ export default function Login() {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-            <form
-                onSubmit={handleLogin}
-                className="bg-white p-6 rounded shadow-md w-full max-w-sm"
-            >
-                <h2 className="text-2xl font-bold mb-4 text-center">Login</h2>
-
-                {message && (
-                    <p className="mb-4 text-sm text-red-600 text-center">{message}</p>
-                )}
-
-                <div className="mb-4">
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                        Email
-                    </label>
-                    <input
-                        type="email"
-                        id="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        required
-                    />
-                </div>
-
-                <div className="mb-6">
-                    <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                        Senha
-                    </label>
-                    <input
-                        type="password"
-                        id="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        required
-                    />
-                </div>
-
-                <button
-                    type="submit"
-                    className="w-full bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition duration-300"
+        <>
+            <ToastContainer />
+            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+                <form
+                    onSubmit={handleLogin}
+                    className="bg-white p-6 rounded shadow-md w-full max-w-sm"
                 >
-                    Entrar
-                </button>
+                    <h2 className="text-2xl font-bold mb-4 text-center">Login</h2>
 
-                <p className="mt-4 text-center text-sm">
-                    Não tem uma conta?{' '}
-                    <Link href="/cadastro_usuario" className="text-indigo-600 hover:underline">
-                        Cadastre-se
-                    </Link>
-                </p>
+                    {message && (
+                        <p className="mb-4 text-sm text-red-600 text-center">{message}</p>
+                    )}
 
-                <p className="mt-2 text-center text-sm">
-                    <Link href="/recuperar-senha" className="text-indigo-600 hover:underline">
-                        Esqueceu a senha?
-                    </Link>
-                </p>
+                    <div className="mb-4">
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                            Email
+                        </label>
+                        <input
+                            type="email"
+                            id="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                            required
+                        />
+                    </div>
 
-            </form>
-        </div>
+                    <div className="mb-6">
+                        <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                            Senha
+                        </label>
+                        <input
+                            type="password"
+                            id="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                            required
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        className="w-full bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition duration-300"
+                    >
+                        Entrar
+                    </button>
+
+                    <p className="mt-4 text-center text-sm">
+                        Não tem uma conta?{' '}
+                        <Link href="/cadastro_usuario" className="text-indigo-600 hover:underline">
+                            Cadastre-se
+                        </Link>
+                    </p>
+
+                    <p className="mt-2 text-center text-sm">
+                        <Link href="/recuperar-senha" className="text-indigo-600 hover:underline">
+                            Esqueceu a senha?
+                        </Link>
+                    </p>
+
+                </form>
+            </div>
+        </>
     );
 }
