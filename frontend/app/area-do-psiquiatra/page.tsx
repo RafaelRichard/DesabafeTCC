@@ -95,9 +95,9 @@ export default function AreaPsiquiatra() {
                         <FiClipboard size={20} />
                         <span>Minhas Consultas</span>
                     </Link>
-                    <Link href="/psiquiatra/configuracoes" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
+                    <Link href="/prontuario_psiquiatra" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
                         <FiSettings size={20} />
-                        <span>Configurações</span>
+                        <span>Prontuário</span>
                     </Link>
                 </nav>
                 <div className="mt-auto">
@@ -141,11 +141,11 @@ export default function AreaPsiquiatra() {
                                 </Link>
                             </div>
                             <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
-                                <h3 className="text-xl font-semibold text-gray-700 mb-4">Configurações</h3>
-                                <p className="text-gray-500">Ajuste suas configurações de conta.</p>
-                                <Link href="/psiquiatra/configuracoes">
+                                <h3 className="text-xl font-semibold text-gray-700 mb-4">Prontuário</h3>
+                                <p className="text-gray-500">Acesse os seus prontuários médicos.</p>
+                                <Link href="/prontuario_psiquiatra">
                                     <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
-                                        Acessar Configurações
+                                        Acessar Prontuários
                                     </button>
                                 </Link>
                             </div>

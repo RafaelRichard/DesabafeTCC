@@ -79,6 +79,9 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         data = super().validate(attrs)
+        # Verifica se o usuário está inativo
+        if hasattr(self.user, 'status') and self.user.status == 'inativo':
+            raise serializers.ValidationError('Usuário inativo. O acesso não é permitido.')
         # Adiciona também no response (opcional)
         data.update({
             "user_id": self.user.id,

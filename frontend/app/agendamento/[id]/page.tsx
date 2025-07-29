@@ -161,10 +161,10 @@ export default function Agendamento() {
       return;
     }
 
-    // O backend espera: usuario, psiquiatra, data_hora, status, observacoes
+    // O backend espera: usuario, psiquiatra ou psicologo, data_hora, status, observacoes
     const agendamento = {
-      usuario: usuario.id, // campo correto para paciente
-      psiquiatra: profissional.id, // campo correto para profissional (psiquiatra ou psicologo)
+      usuario: usuario.id,
+      ...(profissional.crm ? { psiquiatra: profissional.id } : { psicologo: profissional.id }),
       data_hora: dataHora,
       status,
       observacoes,
@@ -191,19 +191,29 @@ export default function Agendamento() {
           setLinkConsulta(agendamentoDetalhado.link_consulta || '');
         }
       }
-      toast.success('Consulta agendada com sucesso!');
+      toast.success('Consulta agendada com sucesso!', {
+        position: 'top-center',
+        autoClose: 3000,
+        theme: 'colored',
+      });
       // Não redireciona imediatamente, deixa o usuário ver o link
       // setTimeout(() => router.push('/'), 2000);
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao agendar a consulta.');
+      toast.error('Erro ao agendar a consulta.', {
+        position: 'top-center',
+        autoClose: 4000,
+      });
     }
   };
 
   // Função para iniciar o pagamento Mercado Pago
   const handlePagamento = async () => {
     if (!usuario || !profissional) {
-      toast.error('Dados insuficientes para pagamento.');
+      toast.error('Dados insuficientes para pagamento.', {
+        position: 'top-center',
+        autoClose: 4000,
+      });
       return;
     }
     // Revalida o horário antes de enviar
@@ -220,7 +230,10 @@ export default function Agendamento() {
     setLoadingHorarios(false);
     const slotEscolhido = moment(dataHora).format('HH:mm');
     if (horariosAtualizados.includes(slotEscolhido)) {
-      toast.error('Este horário acabou de ser ocupado. Por favor, escolha outro.');
+      toast.error('Este horário acabou de ser ocupado. Por favor, escolha outro.', {
+        position: 'top-center',
+        autoClose: 4000,
+      });
       setHorariosOcupados(horariosAtualizados);
       setDataHora('');
       return;
@@ -242,7 +255,7 @@ export default function Agendamento() {
         // Salva o agendamento no backend antes de redirecionar para o pagamento
         const agendamento = {
           usuario: usuario.id,
-          psiquiatra: profissional.id,
+          ...(profissional.crm ? { psiquiatra: profissional.id } : { psicologo: profissional.id }),
           data_hora: dataHora,
           status: 'pendente',
           observacoes,
@@ -256,10 +269,16 @@ export default function Agendamento() {
         });
         window.location.href = data.checkout_url;
       } else {
-        toast.error(data.error || 'Erro ao criar pagamento Mercado Pago.');
+      toast.error(data.error || 'Erro ao criar pagamento Mercado Pago.', {
+        position: 'top-center',
+        autoClose: 4000,
+      });
       }
     } catch (err) {
-      toast.error('Erro ao conectar com o servidor de pagamento.');
+      toast.error('Erro ao conectar com o servidor de pagamento.', {
+        position: 'top-center',
+        autoClose: 4000,
+      });
     }
   };
 
@@ -326,18 +345,22 @@ export default function Agendamento() {
                   const slotStr = slot.format('HH:mm');
                   const slotFull = slot.format('YYYY-MM-DDTHH:mm');
                   const ocupado = horariosOcupados.some(h => slot.format('HH:mm') === h);
+                  // Validação: horário passado
+                  const agora = moment();
+                  const slotIsPast = slot.isBefore(agora);
+                  const indisponivel = ocupado || slotIsPast || loadingHorarios;
                   return (
                     <button
                       key={slotStr}
                       type="button"
-                      disabled={ocupado || loadingHorarios}
+                      disabled={indisponivel}
                       onClick={() => {
-                        if (ocupado || loadingHorarios) return;
+                        if (indisponivel) return;
                         setDataHora(slotFull);
                         toast.success('Horário selecionado: ' + slot.format('DD/MM/YYYY HH:mm'));
                       }}
                       className={`w-full py-2 rounded font-semibold border text-sm transition-all duration-150
-                        ${ocupado
+                        ${indisponivel
                           ? 'bg-red-100 text-red-600 border-red-300 cursor-not-allowed opacity-70'
                           : (dataHora === slotFull
                               ? 'bg-green-600 text-white border-green-700 shadow-lg scale-105'
@@ -345,7 +368,7 @@ export default function Agendamento() {
                       `}
                       style={{ minWidth: 0 }}
                     >
-                      {slot.format('HH:mm')}<br/>{ocupado ? <span className="text-xs font-normal">Indisponível</span> : <span className="text-xs font-normal text-green-700">Disponível</span>}
+                      {slot.format('HH:mm')}<br/>{indisponivel ? <span className="text-xs font-normal">Indisponível</span> : <span className="text-xs font-normal text-green-700">Disponível</span>}
                     </button>
                   );
                 })}

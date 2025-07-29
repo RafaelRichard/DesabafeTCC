@@ -172,7 +172,7 @@ export default function ConsultasAdmin() {
         nomePaciente = c.especialidade;
       } else {
         nomePaciente = 'Consulta';
-      }
+      } 
     }
 
     let status = c.status || 'pendente';
