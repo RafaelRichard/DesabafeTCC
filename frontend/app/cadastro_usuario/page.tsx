@@ -89,16 +89,16 @@ export default function CadastroUsuario() {
 
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white py-20 flex items-center justify-center px-4">
-            <div className="w-full max-w-xl bg-white shadow-2xl rounded-2xl p-8 md:p-10">
-                <h1 className="text-3xl font-bold text-center text-indigo-600 mb-6">
+        <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-white to-green-100 py-20 flex items-center justify-center px-4">
+            <div className="w-full max-w-xl bg-white/90 backdrop-blur-md shadow-2xl rounded-2xl p-8 md:p-10 border border-indigo-100">
+                <h1 className="text-3xl font-extrabold text-center text-indigo-700 mb-4 drop-shadow-sm tracking-tight">
                     Criar Conta
                 </h1>
+                <p className="text-center text-gray-500 mb-6">Preencha os dados para criar sua conta</p>
 
                 {message && (
                     <div
-                        className={`mb-6 p-3 rounded text-center text-white ${message.includes('Erro') ? 'bg-red-500' : 'bg-green-500'
-                            }`}
+                        className={`mb-6 p-3 rounded text-center text-white font-semibold ${message.includes('Erro') ? 'bg-red-500' : 'bg-green-500'}`}
                     >
                         {message}
                     </div>
@@ -124,11 +124,10 @@ export default function CadastroUsuario() {
                         <select
                             name="status"
                             value={formData.status}
-                            onChange={handleChange}
-                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                            disabled
+                            className="w-full p-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed"
                         >
                             <option value="ativo">Ativo</option>
-                            <option value="inativo">Inativo</option>
                         </select>
                     </div>
                     <div>

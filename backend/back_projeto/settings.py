@@ -19,7 +19,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
+# JWT Signature Verification do JWT
 SECRET_KEY = 'django-insecure-zv4!s&j9bpx@rjq=l$*wcmybts&h7#_3sgb(jd07!aa@1$0tk0'
 
 # Remover duplicidade de SECRET_KEY e padronizar uso

@@ -1,8 +1,7 @@
 # serializers.py
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Usuario, Agendamento, AgendamentoHistorico, Endereco
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .models import Usuario, Agendamento, AgendamentoHistorico, Endereco, Prontuario
 
 class UsuarioSerializer(serializers.ModelSerializer):
     foto = serializers.SerializerMethodField()
@@ -90,3 +89,12 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
             "role": self.user.role,
         })
         return data
+
+# Serializer para o Prontuário, incluindo dados completos da consulta e do paciente
+class ProntuarioSerializer(serializers.ModelSerializer):
+    agendamento = AgendamentoSerializer()  # Consulta completa
+    paciente = UsuarioSerializer(source='agendamento.usuario')  # Paciente completo
+
+    class Meta:
+        model = Prontuario
+        fields = ['id', 'agendamento', 'paciente', 'texto', 'data_criacao', 'data_atualizacao']

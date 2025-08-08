@@ -13,7 +13,6 @@ interface User {
     status?: string;
 }
 
-// Gráfico de barras SVG customizado
 function BarChartSVG({ data }: { data: { role: string; count: number; color: string }[] }) {
     const max = Math.max(...data.map(d => d.count), 1);
     const barHeight = 32;
@@ -36,23 +35,52 @@ function BarChartSVG({ data }: { data: { role: string; count: number; color: str
 
 export default function Listagem() {
     const [users, setUsers] = useState<User[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loadingUsers, setLoadingUsers] = useState(true);
+    const [authLoading, setAuthLoading] = useState(true);
     const [activeRole, setActiveRole] = useState<string | null>(null);
     const router = useRouter();
 
+    // 🔒 Validação de Admin
+    useEffect(() => {
+        const verificarAutenticacao = async () => {
+            try {
+                const response = await fetch('http://localhost:8000/usuario_jwt/', {
+                    credentials: 'include',
+                });
+
+                if (!response.ok) {
+                    router.push('/login');
+                    return;
+                }
+
+                const data = await response.json();
+                if (data.role !== 'Admin') {
+                    router.push('/login');
+                }
+            } catch (error) {
+                console.error('Erro ao verificar autenticação:', error);
+                router.push('/login');
+            } finally {
+                setAuthLoading(false);
+            }
+        };
+
+        verificarAutenticacao();
+    }, [router]);
+
+    // 🔄 Buscar usuários
     useEffect(() => {
         const fetchUsers = async () => {
             try {
                 const response = await fetch('http://localhost:8000/api/users/');
                 const data = await response.json();
                 setUsers(data);
-
                 const initialRole = data.length > 0 ? data[0].role : null;
                 setActiveRole(initialRole);
             } catch (error) {
                 console.error('Erro ao buscar usuários:', error);
             } finally {
-                setLoading(false);
+                setLoadingUsers(false);
             }
         };
 
@@ -81,28 +109,24 @@ export default function Listagem() {
         router.push(`/admin/listagem/editar/${id}`);
     };
 
-
     const groupedUsers = users.reduce<Record<string, User[]>>((acc, user) => {
         if (!acc[user.role]) acc[user.role] = [];
         acc[user.role].push(user);
         return acc;
     }, {});
     const roles = Object.keys(groupedUsers);
-    // Estatísticas por papel + cores
     const COLORS = ['#6366f1', '#22c55e', '#f59e42', '#e11d48', '#7c3aed', '#0ea5e9'];
     const stats = roles.map((role, idx) => ({
         role,
-        count: groupedUsers[role].length,   
+        count: groupedUsers[role].length,
         color: COLORS[idx % COLORS.length]
     }));
 
-    if (loading) {
+    if (authLoading || loadingUsers) {
         return (
-            <p className="text-center text-lg text-indigo-600 mt-20">Carregando usuários...</p>
+            <p className="text-center text-lg text-indigo-600 mt-20">Carregando...</p>
         );
     }
-
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-white to-indigo-200 px-6 py-12">
             <h1 className="text-5xl font-extrabold text-center text-indigo-800 mb-8 tracking-tight">

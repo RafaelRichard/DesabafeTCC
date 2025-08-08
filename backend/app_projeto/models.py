@@ -3,6 +3,27 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 import uuid
 import os
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+# Modelo de Prontuário: cada consulta tem UM prontuário
+class Prontuario(models.Model):
+    agendamento = models.OneToOneField('Agendamento', on_delete=models.CASCADE, related_name='prontuario')
+    texto = models.TextField(blank=True, null=True)  # O texto do prontuário pode começar vazio
+    data_criacao = models.DateTimeField(auto_now_add=True)
+    data_atualizacao = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Prontuário de {self.agendamento.usuario.nome} ({self.agendamento.data_hora.date()})'
+
+
+
+@receiver(post_save, sender='app_projeto.agendamento')
+def criar_prontuario_automatico(sender, instance, created, **kwargs):
+    if created:
+        from .models import Prontuario
+        Prontuario.objects.create(agendamento=instance)
+
 
 
 def user_foto_upload_path(instance, filename):

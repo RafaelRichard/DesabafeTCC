@@ -26,7 +26,7 @@ from app_projeto.views import (
     detalhar_usuario, listar_psicologos,
     iniciar_oauth_mercadopago, oauth_callback_mercadopago, criar_pagamento_mercadopago,
     listar_agendamentos_profissional, listar_agendamentos_paciente, deletar_agendamento,
-    detalhar_agendamento, horarios_ocupados, upload_foto_usuario
+    detalhar_agendamento, horarios_ocupados, upload_foto_usuario, listar_prontuarios, prontuario_detalhe_editar
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -65,6 +65,11 @@ urlpatterns = [
     path('api/agendamentos_paciente/', listar_agendamentos_paciente, name='listar_agendamentos_paciente'),
     path('api/agendamentos/<int:id>/', detalhar_agendamento, name='detalhar_agendamento'),
 
+    #PRONTUARIOS
+    path('api/prontuarios/', listar_prontuarios, name='listar_prontuarios'),
+    path('api/prontuarios/<int:id>/', prontuario_detalhe_editar, name='prontuario_detalhe_editar'),
+    
+    
     path('api/enderecos_usuario/<int:usuario_id>/', enderecos_usuario, name='enderecos_usuario'),
 
     path('api/perfil/<int:id>/', detalhar_usuario, name='detalhar_usuario'),

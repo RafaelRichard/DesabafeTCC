@@ -3,6 +3,18 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FiUser, FiClipboard, FiSettings } from 'react-icons/fi';
+import { Bar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend as ChartLegend,
+} from 'chart.js';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, ChartTooltip, ChartLegend);
 
 // Função para pegar o cookie pelo nome
 const getCookie = (name: string): string | null => {
@@ -118,35 +130,92 @@ export default function AreaPsicologo() {
                             <p className="text-lg text-gray-500">Gerencie seus dados e consultas.</p>
                         </div>
 
-                        {/* Grid de Cards */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
-                            <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
-                                <h3 className="text-xl font-semibold text-gray-700 mb-4">Meu Perfil</h3>
-                                <p className="text-gray-500">Veja e edite suas informações pessoais.</p>
-                                <Link href="/meu_perfil_psicologo">
-                                    <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
-                                        Ver Perfil
-                                    </button>
-                                </Link>
-                            </div>
-                            <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
-                                <h3 className="text-xl font-semibold text-gray-700 mb-4">Minhas Consultas</h3>
-                                <p className="text-gray-500">Visualize e gerencie suas consultas.</p>
-                                <Link href="/consultas_psicologos">
-                                    <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
-                                        Ver Consultas
-                                    </button>
-                                </Link>
-                            </div>
-                            <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
-                                <h3 className="text-xl font-semibold text-gray-700 mb-4">Configurações</h3>
-                                <p className="text-gray-500">Ajuste suas configurações de conta.</p>
-                                <Link href="/area-do-psicologo/configuracoes">
-                                    <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
-                                        Acessar Configurações
-                                    </button>
-                                </Link>
-                            </div>
+
+                        {/* Gráfico Chart.js - visual profissional com Tailwind */}
+                        <div className="w-full max-w-3xl mx-auto bg-gradient-to-br from-indigo-50 via-white to-green-50 rounded-2xl shadow-2xl border border-indigo-200 p-8 flex flex-col items-center transition-all duration-300 hover:shadow-indigo-300">
+                          <h3 className="text-2xl font-bold text-indigo-700 mb-6 text-center drop-shadow-sm tracking-tight">Consultas e Receita por Status</h3>
+                          <div className="w-full h-[350px] md:h-[400px] flex items-center justify-center">
+                            <Bar
+                              data={{
+                                labels: ['Confirmada', 'Pendente', 'Cancelada'],
+                                datasets: [
+                                  {
+                                    label: 'Consultas',
+                                    data: [10, 7, 2],
+                                    backgroundColor: 'rgba(99,102,241,0.85)', // indigo-500
+                                    borderRadius: 8,
+                                    barPercentage: 0.6,
+                                    categoryPercentage: 0.5,
+                                  },
+                                  {
+                                    label: 'Valor Recebido',
+                                    data: [1000, 700, 0],
+                                    backgroundColor: 'rgba(34,197,94,0.85)', // green-500
+                                    borderRadius: 8,
+                                    barPercentage: 0.6,
+                                    categoryPercentage: 0.5,
+                                  },
+                                ],
+                              }}
+                              options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                  legend: {
+                                    position: 'top',
+                                    labels: {
+                                      color: '#312e81', // indigo-900
+                                      font: { size: 16, weight: 'bold' },
+                                      padding: 24,
+                                    },
+                                  },
+                                  title: { display: false },
+                                  tooltip: {
+                                    backgroundColor: '#312e81',
+                                    titleColor: '#fff',
+                                    bodyColor: '#fff',
+                                    borderColor: '#6366f1',
+                                    borderWidth: 1,
+                                    callbacks: {
+                                      label: function(context) {
+                                        if (context.dataset.label === 'Valor Recebido') {
+                                          return `${context.dataset.label}: R$${context.parsed.y}`;
+                                        }
+                                        return `${context.dataset.label}: ${context.parsed.y}`;
+                                      }
+                                    }
+                                  }
+                                },
+                                scales: {
+                                  x: {
+                                    grid: {
+                                      display: false,
+                                    },
+                                    ticks: {
+                                      color: '#6366f1',
+                                      font: { size: 15, weight: 'bold' },
+                                    },
+                                  },
+                                  y: {
+                                    beginAtZero: true,
+                                    grid: {
+                                      color: '#e0e7ff',
+                                    },
+                                    title: {
+                                      display: true,
+                                      text: 'Quantidade / Valor (R$)',
+                                      color: '#16a34a',
+                                      font: { size: 16, weight: 'bold' },
+                                    },
+                                    ticks: {
+                                      color: '#16a34a',
+                                      font: { size: 15, weight: 'bold' },
+                                    },
+                                  },
+                                },
+                              }}
+                            />
+                          </div>
                         </div>
                     </div>
                 )}
