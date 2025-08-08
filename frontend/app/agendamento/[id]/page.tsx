@@ -389,12 +389,10 @@ export default function Agendamento() {
           <label className="font-medium text-gray-700">Status do Agendamento</label>
           <select
             value={status}
-            onChange={(e) => setStatus(e.target.value as any)}
-            className="w-full border border-gray-300 p-4 rounded-lg mt-2 focus:outline-none focus:ring-2 focus:ring-indigo-600 transition duration-200"
+            disabled
+            className="w-full border border-gray-300 p-4 rounded-lg mt-2 bg-gray-100 text-gray-400 cursor-not-allowed"
           >
             <option value="pendente">Pendente</option>
-            <option value="confirmado">Confirmado</option>
-            <option value="cancelado">Cancelado</option>
           </select>
         </div>
 

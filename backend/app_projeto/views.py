@@ -2,7 +2,7 @@ from django.http import JsonResponse, HttpResponseRedirect
 import json
 import re
 import requests
-from .models import Usuario, Endereco
+from .models import Usuario, Endereco, Prontuario
 from django.contrib.auth.hashers import check_password
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.hashers import make_password
@@ -19,7 +19,7 @@ from .permissions import IsAdmin, IsPaciente, IsPsicologo, IsPsiquiatra
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status   
-from .serializers import UsuarioSerializer, AgendamentoSerializer, EnderecoSerializer, UsuarioComEnderecoSerializer
+from .serializers import UsuarioSerializer, AgendamentoSerializer, EnderecoSerializer, UsuarioComEnderecoSerializer, ProntuarioSerializer
 from .models import Agendamento, AgendamentoHistorico
 import jwt
 from rest_framework_simplejwt.tokens import UntypedToken
@@ -36,8 +36,18 @@ from rest_framework.permissions import AllowAny
 from django.views.decorators.http import require_POST
 import os
 from django.utils.dateparse import parse_date
+# ViewSet para Prontuário: permite listar, visualizar e editar prontuários
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from .models import Prontuario, Usuario
+from .serializers import ProntuarioSerializer
 
-
+# Endpoint para detalhar e editar prontuário (GET e PATCH)
+from rest_framework.decorators import api_view
+from rest_framework import status
+from django.views.decorators.csrf import csrf_exempt
 
 
 def get_csrf_token(request):
@@ -999,3 +1009,115 @@ def upload_foto_usuario(request, id):
     serializer = UsuarioComEnderecoSerializer(usuario)
     return JsonResponse(serializer.data, status=200)
 
+
+
+# ViewSet para Prontuário: permite listar, visualizar e editar prontuários
+
+
+# Listar prontuários conforme o papel do usuário autenticado (padrão das outras views)
+
+@api_view(['GET'])
+def listar_prontuarios(request):
+    # Busca o usuário logado via JWT manualmente
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    try:
+        import jwt
+        from django.conf import settings
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+
+    if usuario.role == 'Psiquiatra':
+        prontuarios = Prontuario.objects.filter(agendamento__psiquiatra=usuario)
+    elif usuario.role == 'Psicologo':
+        prontuarios = Prontuario.objects.filter(agendamento__psicologo=usuario)
+    elif usuario.role == 'Admin':
+        prontuarios = Prontuario.objects.all()
+    else:
+        prontuarios = Prontuario.objects.none()
+
+    serializer = ProntuarioSerializer(prontuarios, many=True)
+    return Response(serializer.data)
+
+
+@csrf_exempt
+@api_view(['GET', 'PATCH'])
+def prontuario_detalhe_editar(request, id):
+    # Autenticação manual via JWT (igual padrão)
+    token = request.COOKIES.get('jwt')
+    if not token:
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            possible_token = auth_header.replace('Bearer ', '').strip()
+            if possible_token and possible_token.lower() != 'null':
+                token = possible_token
+    if not token or token.lower() == 'null':
+        return Response({'error': 'Não autenticado.'}, status=401)
+    try:
+        import jwt
+        from django.conf import settings
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+
+    # Busca o prontuário
+    try:
+        prontuario = Prontuario.objects.get(id=id)
+    except Prontuario.DoesNotExist:
+        return Response({'error': 'Prontuário não encontrado.'}, status=404)
+
+    # Só psiquiatra do agendamento ou admin pode editar/ver
+    if usuario.role == 'Psiquiatra' and prontuario.agendamento.psiquiatra_id != usuario.id:
+        return Response({'error': 'Sem permissão para acessar este prontuário.'}, status=403)
+    if usuario.role == 'Psicologo' and prontuario.agendamento.psicologo_id != usuario.id:
+        return Response({'error': 'Sem permissão para acessar este prontuário.'}, status=403)
+    if usuario.role not in ['Psiquiatra', 'Admin', 'Psicologo']:
+        return Response({'error': 'Sem permissão.'}, status=403)
+
+    if request.method == 'GET':
+        # Serializa com dados do paciente e agendamento
+        data = {
+            'id': prontuario.id,
+            'texto': prontuario.texto,
+            'data_criacao': prontuario.data_criacao,
+            'data_atualizacao': prontuario.data_atualizacao,
+            'paciente': {
+                'id': prontuario.agendamento.usuario.id,
+                'nome': prontuario.agendamento.usuario.nome,
+                'email': prontuario.agendamento.usuario.email,
+                'telefone': prontuario.agendamento.usuario.telefone,
+                'cpf': prontuario.agendamento.usuario.cpf,
+                'status': prontuario.agendamento.usuario.status,
+                'role': prontuario.agendamento.usuario.role,
+            },
+            'agendamento': {
+                'id': prontuario.agendamento.id,
+                'data_hora': prontuario.agendamento.data_hora,
+                'status': prontuario.agendamento.status,
+                'link_consulta': prontuario.agendamento.link_consulta,
+                'observacoes': prontuario.agendamento.observacoes,
+                'data_criacao': prontuario.agendamento.data_criacao,
+            }
+        }
+        return Response(data)
+
+    if request.method == 'PATCH':
+        # Só psiquiatra do agendamento pode editar
+        if usuario.role != 'Psiquiatra' or prontuario.agendamento.psiquiatra_id != usuario.id:
+            return Response({'error': 'Apenas o psiquiatra responsável pode editar.'}, status=403)
+        try:
+            body = request.data
+            novo_texto = body.get('texto', '').strip()
+            if not novo_texto:
+                return Response({'error': 'O texto do prontuário não pode ser vazio.'}, status=400)
+            prontuario.texto = novo_texto
+            prontuario.save()
+            return Response({'success': 'Prontuário atualizado com sucesso.'})
+        except Exception as e:
+            return Response({'error': f'Erro ao atualizar prontuário: {str(e)}'}, status=400)

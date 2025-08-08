@@ -88,34 +88,35 @@ export default function Login() {
             const userInfo = await userInfoRes.json();
             console.log('Usuário autenticado:', userInfo);
 
-            // Armazenando o JWT no cookie com o nome correto 'jwt'
-            // document.cookie = `jwt=${userInfo.token}; path=/; max-age=3600; secure; HttpOnly`;
+            // Mensagem de sucesso com Toastify
+            toast.success('Login realizado com sucesso!', {
+                position: 'top-center',
+                autoClose: 2000,
+                theme: 'colored',
+            });
 
-            window.dispatchEvent(new Event('authChanged')); 
+            window.dispatchEvent(new Event('authChanged'));
 
-            // Redireciona de acordo com o papel
-            switch (userInfo.role) {
-                case 'Admin':
-                    console.log('Redirecionando para a área: Admin');
-                    router.push('/area-admin');
-                    break;
-                case 'Psicologo':
-                    console.log('Redirecionando para a área: Psicologo');
-                    router.push('/area-do-psicologo');
-                    break;
-                case 'Psiquiatra':
-                    console.log('Redirecionando para a área: Psiquiatra');
-                    router.push('/area-do-psiquiatra');
-                    break;
-                case 'Paciente':
-                    console.log('Redirecionando para a área: Paciente');
-                    router.push('/area-do-usuario');
-                    break;
-                default:
-                    console.log('Tipo de usuário não reconhecido:', userInfo.role);
-                    setMessage('Tipo de usuário não reconhecido.');
-                    break;
-            }
+            // Redireciona de acordo com o papel após um pequeno delay para mostrar o toast
+            setTimeout(() => {
+                switch (userInfo.role) {
+                    case 'Admin':
+                        router.push('/area-admin');
+                        break;
+                    case 'Psicologo':
+                        router.push('/area-do-psicologo');
+                        break;
+                    case 'Psiquiatra':
+                        router.push('/area-do-psiquiatra');
+                        break;
+                    case 'Paciente':
+                        router.push('/area-do-usuario');
+                        break;
+                    default:
+                        setMessage('Tipo de usuário não reconhecido.');
+                        break;
+                }
+            }, 1200);
 
         } catch (error) {
             console.error('Erro ao fazer login:', error);
@@ -126,19 +127,20 @@ export default function Login() {
     return (
         <>
             <ToastContainer />
-            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+            <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-indigo-100 via-white to-green-100 px-4">
                 <form
                     onSubmit={handleLogin}
-                    className="bg-white p-6 rounded shadow-md w-full max-w-sm"
+                    className="bg-white/90 backdrop-blur-md p-8 rounded-2xl shadow-2xl w-full max-w-md border border-indigo-100 flex flex-col gap-4"
                 >
-                    <h2 className="text-2xl font-bold mb-4 text-center">Login</h2>
+                    <h2 className="text-3xl font-extrabold mb-2 text-center text-indigo-700 drop-shadow-sm tracking-tight">Login</h2>
+                    <p className="text-center text-gray-500 mb-4">Acesse sua conta para continuar</p>
 
                     {message && (
-                        <p className="mb-4 text-sm text-red-600 text-center">{message}</p>
+                        <p className="mb-2 text-sm text-red-600 text-center font-semibold">{message}</p>
                     )}
 
-                    <div className="mb-4">
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                    <div className="mb-2">
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                             Email
                         </label>
                         <input
@@ -146,13 +148,14 @@ export default function Login() {
                             id="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                            className="mt-1 block w-full px-4 py-2 border border-indigo-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 bg-indigo-50/60 placeholder-gray-400 text-gray-800"
+                            placeholder="Digite seu e-mail"
                             required
                         />
                     </div>
 
-                    <div className="mb-6">
-                        <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                    <div className="mb-4">
+                        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                             Senha
                         </label>
                         <input
@@ -160,31 +163,31 @@ export default function Login() {
                             id="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                            className="mt-1 block w-full px-4 py-2 border border-indigo-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 bg-indigo-50/60 placeholder-gray-400 text-gray-800"
+                            placeholder="Digite sua senha"
                             required
                         />
                     </div>
 
                     <button
                         type="submit"
-                        className="w-full bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition duration-300"
+                        className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg font-bold shadow hover:bg-indigo-700 transition duration-300 text-lg tracking-wide"
                     >
                         Entrar
                     </button>
 
                     <p className="mt-4 text-center text-sm">
                         Não tem uma conta?{' '}
-                        <Link href="/cadastro_usuario" className="text-indigo-600 hover:underline">
+                        <Link href="/cadastro_usuario" className="text-indigo-600 hover:underline font-semibold">
                             Cadastre-se
                         </Link>
                     </p>
 
                     <p className="mt-2 text-center text-sm">
-                        <Link href="/recuperar-senha" className="text-indigo-600 hover:underline">
+                        <Link href="/recuperar-senha" className="text-indigo-600 hover:underline font-semibold">
                             Esqueceu a senha?
                         </Link>
                     </p>
-
                 </form>
             </div>
         </>
