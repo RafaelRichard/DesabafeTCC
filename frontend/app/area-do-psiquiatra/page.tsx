@@ -27,6 +27,7 @@ const getCookie = (name: string): string | null => {
 };
 
 export default function AreaPsiquiatra() {
+  const [consultasData, setConsultasData] = useState<any[]>([]);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [role, setRole] = useState('');
     const [userName, setUserName] = useState('');
@@ -35,38 +36,43 @@ export default function AreaPsiquiatra() {
     const router = useRouter();
 
     useEffect(() => {
-        const verificarAutenticacao = async () => {
-            try {
-                const response = await fetch('http://localhost:8000/usuario_jwt/', {
-                    credentials: 'include',
-                });
+    const verificarAutenticacao = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/usuario_jwt/', {
+          credentials: 'include',
+        });
 
-                if (!response.ok) {
-                    console.log('Usuário não autenticado, redirecionando para login');
-                    router.push('/login');
-                    return;
-                }
+        if (!response.ok) {
+          console.log('Usuário não autenticado, redirecionando para login');
+          router.push('/login');
+          return;
+        }
 
-                const data = await response.json();
-                if (data.role === 'Psiquiatra') {
-                    setIsLoggedIn(true);
-                    setRole(data.role);
-                    setUserName(data.email);
-                    setFoto(data.foto || null);
-                } else {
-                    console.log('Usuário não é Psiquiatra, redirecionando');
-                    router.push('/login');
-                }
-            } catch (error) {
-                console.error('Erro ao verificar autenticação:', error);
-                router.push('/login');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        verificarAutenticacao();
-    }, [router]);
+        const data = await response.json();
+        if (data.role === 'Psiquiatra') {
+          setIsLoggedIn(true);
+          setRole(data.role);
+          setUserName(data.email);
+          setFoto(data.foto || null);
+          // Buscar agendamentos reais
+          const agRes = await fetch('http://localhost:8000/api/agendamentos_profissional/', { credentials: 'include' });
+          if (agRes.ok) {
+            const agData = await agRes.json();
+            setConsultasData(agData);
+          }
+        } else {
+          console.log('Usuário não é Psiquiatra, redirecionando');
+          router.push('/login');
+        }
+      } catch (error) {
+        console.error('Erro ao verificar autenticação:', error);
+        router.push('/login');
+      } finally {
+        setLoading(false);
+      }
+    };
+    verificarAutenticacao();
+  }, [router]);
 
     const handleLogout = () => {
         document.cookie = "jwt=; Max-Age=0; path=/";
@@ -142,7 +148,11 @@ export default function AreaPsiquiatra() {
                                 datasets: [
                                   {
                                     label: 'Consultas',
-                                    data: [12, 5, 3],
+                                    data: [
+                                      consultasData.filter(c => c.status === 'confirmado').length,
+                                      consultasData.filter(c => c.status === 'pendente').length,
+                                      consultasData.filter(c => c.status === 'cancelado').length,
+                                    ],
                                     backgroundColor: 'rgba(99,102,241,0.85)', // indigo-500
                                     borderRadius: 8,
                                     barPercentage: 0.6,
@@ -150,8 +160,24 @@ export default function AreaPsiquiatra() {
                                   },
                                   {
                                     label: 'Valor Recebido',
-                                    data: [1200, 500, 0],
+                                    data: [
+                                      consultasData.filter(c => c.status === 'confirmado').reduce((acc, c) => acc + (c.valor_recebido_profissional || 0), 0),
+                                      consultasData.filter(c => c.status === 'pendente').reduce((acc, c) => acc + (c.valor_recebido_profissional || 0), 0),
+                                      consultasData.filter(c => c.status === 'cancelado').reduce((acc, c) => acc + (c.valor_recebido_profissional || 0), 0),
+                                    ],
                                     backgroundColor: 'rgba(34,197,94,0.85)', // green-500
+                                    borderRadius: 8,
+                                    barPercentage: 0.6,
+                                    categoryPercentage: 0.5,
+                                  },
+                                  {
+                                    label: 'Valor Plataforma',
+                                    data: [
+                                      consultasData.filter(c => c.status === 'confirmado').reduce((acc, c) => acc + (c.valor_plataforma || 0), 0),
+                                      consultasData.filter(c => c.status === 'pendente').reduce((acc, c) => acc + (c.valor_plataforma || 0), 0),
+                                      consultasData.filter(c => c.status === 'cancelado').reduce((acc, c) => acc + (c.valor_plataforma || 0), 0),
+                                    ],
+                                    backgroundColor: 'rgba(251,191,36,0.85)', // yellow-400
                                     borderRadius: 8,
                                     barPercentage: 0.6,
                                     categoryPercentage: 0.5,
@@ -179,8 +205,8 @@ export default function AreaPsiquiatra() {
                                     borderWidth: 1,
                                     callbacks: {
                                       label: function(context) {
-                                        if (context.dataset.label === 'Valor Recebido') {
-                                          return `${context.dataset.label}: R$${context.parsed.y}`;
+                                        if (context.dataset.label === 'Valor Recebido' || context.dataset.label === 'Valor Plataforma') {
+                                          return `${context.dataset.label}: R$${context.parsed.y.toFixed(2)}`;
                                         }
                                         return `${context.dataset.label}: ${context.parsed.y}`;
                                       }

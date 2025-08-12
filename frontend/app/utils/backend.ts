@@ -11,4 +11,4 @@ export function getBackendUrl() {
 }
 
 // Exemplo de uso:
-// fetch(`${getBackendUrl()}/api/mercadopago/pagamento/`, ...)
+

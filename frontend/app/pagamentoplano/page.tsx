@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { getBackendUrl } from '../utils/backend';
+import { loadStripe } from '@stripe/stripe-js';
 
 export default function PagamentoPlano() {
     const searchParams = useSearchParams();
@@ -58,29 +59,27 @@ export default function PagamentoPlano() {
         buscarUsuario();
     }, []);
 
-    // Função para iniciar pagamento via Mercado Pago
-    const iniciarPagamentoMercadoPago = async () => {
-        if (!metodoPagamento) {
-            toast.warn('Selecione um método de pagamento.');
+    // Função para iniciar pagamento via Stripe
+    const iniciarPagamentoStripe = async () => {
+        if (!psiquiatra) {
+            toast.error('Profissional não encontrado para pagamento.');
             return;
         }
         try {
-            const res = await fetch(`${getBackendUrl()}/api/mercadopago/pagamento/`, {
+            const res = await fetch(`${getBackendUrl()}/api/stripe/pagamento/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({
                     nome_produto: `Consulta ${planoNome}`,
                     preco: preco,
-                    quantidade: 1,
-                    metodo_pagamento: metodoPagamento,
-                    parcelas: metodoPagamento === 'cartao_credito' ? parcelas : 1,
-                    cartao: metodoPagamento.startsWith('cartao') ? cartao : undefined,
+                    profissional_id: psiquiatra.id,
+                    usuario_id: psiquiatra.id,
                 })
             });
             const data = await res.json();
-            if (data.init_point) {
-                window.location.href = data.init_point; // Redireciona para o checkout Mercado Pago
+            if (data.checkout_url) {
+                window.location.href = data.checkout_url; // Redireciona para o checkout Stripe
             } else {
                 toast.error('Erro ao iniciar pagamento: ' + (data.error || ''));
             }
@@ -99,10 +98,10 @@ export default function PagamentoPlano() {
             </div>
 
             <button
-                onClick={iniciarPagamentoMercadoPago}
+                onClick={iniciarPagamentoStripe}
                 className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold text-lg shadow mb-4"
             >
-                Pagar com Mercado Pago
+                Pagar com Stripe
             </button>
 
             <div>
@@ -198,10 +197,10 @@ export default function PagamentoPlano() {
             )}
 
             <button
-                onClick={iniciarPagamentoMercadoPago}
+                onClick={iniciarPagamentoStripe}
                 className="w-full bg-indigo-600 text-white py-3 rounded-lg mt-6 font-medium hover:bg-indigo-700 transition"
             >
-                Confirmar Pagamento
+                Confirmar Pagamento com Stripe
             </button>
 
             <ToastContainer position="top-center" autoClose={3000} />

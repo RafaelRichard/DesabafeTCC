@@ -1,3 +1,4 @@
+// Observação: O backend espera POST para onboarding e GET para status, ambos ignorando o parâmetro <id> na view.
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -26,8 +27,7 @@ interface Psiquiatra {
   especialidade?: string;
   telefone?: string;
   enderecos?: Endereco[];
-  mp_user_id?: string; // Mercado Pago user id
-  mp_access_token?: string; // Mercado Pago access token
+  stripe_account_id?: string; // Stripe Connect account id
   foto?: string;
 }
 
@@ -177,23 +177,58 @@ export default function PerfilPsiquiatra() {
     }
   };
 
-  // Função para onboarding Mercado Pago
-  // Eu envio o user_id como query param para o backend incluir no state do OAuth
-  const handleMercadoPagoOnboarding = async () => {
+  // Função para onboarding Stripe Connect
+  const [stripeStatus, setStripeStatus] = useState<'pending' | 'active' | 'incomplete'>('pending');
+  const [stripeOnboardingUrl, setStripeOnboardingUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!psiquiatra) return;
+    const fetchStripeStatus = async () => {
+      const resStripe = await fetch(`${getBackendUrl()}/api/stripe/connect/status/${psiquiatra.id}/`, {
+        credentials: 'include',
+      });
+      if (resStripe.ok) {
+        const stripeData = await resStripe.json();
+        if (stripeData.transfers_enabled) {
+          setStripeStatus('active');
+        } else {
+          setStripeStatus('pending');
+        }
+        setStripeOnboardingUrl(stripeData.url || null);
+      } else {
+        setStripeStatus('pending');
+        setStripeOnboardingUrl(null);
+      }
+    };
+    fetchStripeStatus();
+  }, [psiquiatra]);
+
+  // Exibe toast de sucesso/erro ao retornar do onboarding Stripe
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stripeStatus = params.get('stripe_status');
+    if (stripeStatus === 'success') {
+      toast.success('Conta Stripe Connect vinculada com sucesso!');
+    } else if (stripeStatus === 'error') {
+      toast.error('Erro ao vincular conta Stripe. Tente novamente.');
+    }
+  }, []);
+
+  const handleStripeOnboarding = async () => {
     if (!psiquiatra) return;
     try {
-      const res = await fetch(`${getBackendUrl()}/api/mercadopago/oauth/?user_id=${psiquiatra.id}`, {
-        method: 'GET',
+      const res = await fetch(`${getBackendUrl()}/api/stripe/connect/onboarding/${psiquiatra.id}/`, {
+        method: 'POST',
         credentials: 'include',
       });
       const data = await res.json();
-      if (data.auth_url) {
-        window.location.href = data.auth_url;
+      if (data.url) {
+        window.location.href = data.url;
       } else {
-        toast.error(data.error || 'Erro ao iniciar onboarding Mercado Pago.');
+        toast.error(data.error || 'Erro ao iniciar onboarding Stripe.');
       }
     } catch (err) {
-      toast.error('Erro ao conectar com o Mercado Pago.');
+      toast.error('Erro ao conectar com o Stripe.');
     }
   };
 
@@ -376,19 +411,29 @@ export default function PerfilPsiquiatra() {
       </div>
       <ToastContainer position="top-center" autoClose={3000} />
 
-      {/* Mercado Pago - status e ação */}
+      {/* Stripe Connect - status e ação */}
       <div className="mt-8 flex flex-col items-center gap-3">
-        {psiquiatra?.mp_user_id ? (
-          <span className="px-4 py-2 rounded bg-green-100 text-green-700 font-semibold">Conta Mercado Pago ativa</span>
+        {stripeStatus === 'active' ? (
+          <span className="px-4 py-2 rounded bg-green-100 text-green-700 font-semibold">Conta Stripe Connect ativa</span>
         ) : (
           <>
-            <span className="px-4 py-2 rounded bg-yellow-100 text-yellow-700 font-semibold">Conta Mercado Pago pendente</span>
+            <span className="px-4 py-2 rounded bg-yellow-100 text-yellow-700 font-semibold">Conta Stripe Connect pendente</span>
             <button
-              onClick={handleMercadoPagoOnboarding}
+              onClick={handleStripeOnboarding}
               className="mt-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold shadow"
             >
-              Vincular Mercado Pago
+              Vincular Stripe Connect
             </button>
+            {stripeOnboardingUrl && (
+              <a
+                href={stripeOnboardingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-semibold shadow"
+              >
+                Continuar Onboarding Stripe
+              </a>
+            )}
           </>
         )}
       </div>

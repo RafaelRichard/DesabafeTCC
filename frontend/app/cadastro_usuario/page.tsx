@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-
 export default function CadastroUsuario() {
-    
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [loadingAdmin, setLoadingAdmin] = useState(true);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -36,6 +36,34 @@ export default function CadastroUsuario() {
     const [lgpdConsent, setLgpdConsent] = useState(false);
     const router = useRouter();
 
+    // Detecta se está logado como admin
+    useEffect(() => {
+        const checkAdmin = async () => {
+            try {
+                const res = await fetch('http://localhost:8000/usuario_jwt/', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.role && data.role.trim().toLowerCase() === 'admin') {
+                        setIsAdmin(true);
+                    } else {
+                        setIsAdmin(false);
+                    }
+                } else {
+                    setIsAdmin(false);
+                }
+            } catch {
+                setIsAdmin(false);
+            } finally {
+                setLoadingAdmin(false);
+            }
+        };
+        checkAdmin();
+    }, []);
+
     // Função para obter o token CSRF
     const getCsrfToken = (): string | null => {
         return document.cookie
@@ -52,7 +80,17 @@ export default function CadastroUsuario() {
 
     // Função para lidar com as mudanças nos campos do formulário
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        // Se mudar o tipo de usuário para Psiquiatra ou Psicologo, status vai para pendente
+        if (name === 'role' && (value === 'Psiquiatra' || value === 'Psicologo')) {
+            setFormData({ ...formData, [name]: value, status: 'pendente' });
+        } else if (name === 'role' && value === 'Admin') {
+            setFormData({ ...formData, [name]: value, status: 'pendente' });
+        } else if (name === 'role' && value === 'Paciente') {
+            setFormData({ ...formData, [name]: value, status: 'ativo' });
+        } else {
+            setFormData({ ...formData, [name]: value });
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -124,10 +162,12 @@ export default function CadastroUsuario() {
                         <select
                             name="status"
                             value={formData.status}
-                            disabled
-                            className="w-full p-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed"
+                            disabled={!isAdmin}
+                            className={`w-full p-3 border border-gray-300 rounded-lg ${!isAdmin ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`}
                         >
                             <option value="ativo">Ativo</option>
+                            <option value="inativo">Inativo</option>
+                            <option value="pendente">Pendente</option>
                         </select>
                     </div>
                     <div>

@@ -18,13 +18,21 @@ class UsuarioSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Usuario
-        fields = ['id', 'nome', 'email', 'telefone', 'cpf', 'status', 'role', 'crm', 'crp', 'especialidade', 'valor_consulta', 'foto', 'mp_user_id', 'mp_access_token']
+        fields = [
+            'id', 'nome', 'email', 'telefone', 'cpf', 'status', 'role', 'crm', 'crp',
+            'especialidade', 'valor_consulta', 'foto',
+            'stripe_account_id', 'stripe_email',
+        ]
 
 class UsuarioDetailSerializer(UsuarioSerializer):
     # Caso queira retornar dados mais detalhados do usuário (ex. senha ou informações sensíveis)
     class Meta:
         model = Usuario
-        fields = ['id', 'nome', 'email', 'telefone', 'cpf', 'status', 'role', 'crm', 'crp', 'especialidade', 'valor_consulta', 'foto', 'senha', 'mp_user_id', 'mp_access_token']
+        fields = [
+            'id', 'nome', 'email', 'telefone', 'cpf', 'status', 'role', 'crm', 'crp',
+            'especialidade', 'valor_consulta', 'foto', 'senha',
+            'stripe_account_id', 'stripe_email',
+        ]
 
 
 class AgendamentoSerializer(serializers.ModelSerializer):
@@ -35,8 +43,11 @@ class AgendamentoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Agendamento
-        fields = ['id', 'data_hora', 'status', 'link_consulta', 'observacoes', 'data_criacao', 
-                  'usuario', 'usuario_nome', 'psiquiatra', 'psiquiatra_nome', 'psicologo', 'psicologo_nome']
+        fields = [
+            'id', 'data_hora', 'status', 'link_consulta', 'observacoes', 'data_criacao',
+            'usuario', 'usuario_nome', 'psiquiatra', 'psiquiatra_nome', 'psicologo', 'psicologo_nome',
+            'valor_recebido_profissional', 'valor_plataforma'
+        ]
 
 class AgendamentoHistoricoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -64,7 +75,11 @@ class UsuarioComEnderecoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Usuario
-        fields = ['id', 'nome', 'email', 'telefone', 'cpf', 'status', 'role', 'crm', 'crp', 'especialidade', 'valor_consulta', 'foto', 'enderecos', 'mp_user_id', 'mp_access_token']
+        fields = [
+            'id', 'nome', 'email', 'telefone', 'cpf', 'status', 'role', 'crm', 'crp',
+            'especialidade', 'valor_consulta', 'foto', 'enderecos',
+            'stripe_account_id', 'stripe_email',
+        ]
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod

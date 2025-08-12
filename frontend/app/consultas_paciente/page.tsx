@@ -20,6 +20,20 @@ interface ConsultaEvent {
 }
 
 export default function ConsultasPaciente() {
+  // Exibe toast de sucesso/erro após redirecionamento do pagamento
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const status = params.get('status');
+      if (status === 'sucesso') {
+        toast.success('Pagamento realizado com sucesso!');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (status === 'erro') {
+        toast.error('Ocorreu um erro no pagamento. Tente novamente.');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
   const [consultas, setConsultas] = useState<ConsultaEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedConsulta, setSelectedConsulta] = useState<any | null>(null);
@@ -103,14 +117,12 @@ export default function ConsultasPaciente() {
   const fetchConsultas = async () => {
     setLoading(true);
     try {
-      // Busca o token JWT salvo no localStorage (ajuste a chave se necessário)
-      const token = typeof window !== 'undefined' ? localStorage.getItem('access') : null;
-      console.log('Token JWT enviado:', token); // DEBUG
       const res = await fetch("http://localhost:8000/api/agendamentos_paciente/", {
+        method: 'GET',
         headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
       });
       if (res.status === 401 || res.status === 403) {
         toast.error('Sessão expirada. Faça login novamente.');
@@ -123,7 +135,6 @@ export default function ConsultasPaciente() {
       }
       if (!res.ok) throw new Error("Erro ao buscar consultas");
       const data = await res.json();
-      console.log('Agendamentos recebidos:', data);
       const eventos = data.map((c: any) => {
         let start: Date | null = null;
         let end: Date | null = null;
@@ -161,13 +172,12 @@ export default function ConsultasPaciente() {
   }, []);
 
   const fetchAgendamentoById = async (id: number) => {
-    // Busca o token JWT salvo no localStorage
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access') : null;
     const res = await fetch(`http://localhost:8000/api/agendamentos/${id}/`, {
+      method: 'GET',
       headers: {
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
     });
     if (res.status === 401 || res.status === 403) {
       throw new Error('Sessão expirada. Faça login novamente.');
@@ -186,11 +196,9 @@ export default function ConsultasPaciente() {
     try {
       const agendamentoCompleto = await fetchAgendamentoById(selectedConsulta.id);
       const atualizado = { ...agendamentoCompleto, status: 'cancelado' };
-      const token = typeof window !== 'undefined' ? localStorage.getItem('access') : null;
       const res = await fetch(`http://localhost:8000/api/agendamentos/${selectedConsulta.id}/atualizar/`, {
         method: 'PUT',
         headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json',
         },
         credentials: 'include',
@@ -292,14 +300,23 @@ export default function ConsultasPaciente() {
                   {selectedConsulta.observacao && <div><b>Observação:</b> {selectedConsulta.observacao}</div>}
                   {selectedConsulta.link_consulta && (
                     <div>
-                      <b>Link da Consulta:</b> <a href={selectedConsulta.link_consulta} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-900 transition">Acessar Consulta</a>
+                      <b>Link da Consulta:</b>{' '}
+                      {selectedConsulta.status === 'cancelado' ? (
+                        <span className="text-gray-400 cursor-not-allowed" title="Consulta cancelada - link desabilitado">Acessar Consulta (cancelada)</span>
+                      ) : (
+                        <a href={selectedConsulta.link_consulta} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-900 transition">Acessar Consulta</a>
+                      )}
                       <div className="mt-4">
-                        <iframe
-                          src={selectedConsulta.link_consulta}
-                          style={{ width: '100%', height: 400, border: 0, borderRadius: 12 }}
-                          allow="camera; microphone; fullscreen; display-capture"
-                          title="Jitsi Meet"
-                        />
+                        {selectedConsulta.status !== 'cancelado' ? (
+                          <iframe
+                            src={selectedConsulta.link_consulta}
+                            style={{ width: '100%', height: 400, border: 0, borderRadius: 12 }}
+                            allow="camera; microphone; fullscreen; display-capture"
+                            title="Jitsi Meet"
+                          />
+                        ) : (
+                          <div className="w-full h-[400px] flex items-center justify-center bg-gray-100 rounded-2xl text-gray-400 border border-gray-200">Reunião cancelada</div>
+                        )}
                       </div>
                     </div>
                   )}

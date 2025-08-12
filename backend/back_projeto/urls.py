@@ -1,3 +1,4 @@
+
 """
 URL configuration for back_projeto project.
 
@@ -19,12 +20,30 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from app_projeto.views import (
-    cadastrar_usuario, get_csrf_token, login_usuario, rota_protegida, logout,
-    listar_usuarios, editar_usuario, excluir_usuario, listar_psiquiatras, listar_psiquiatras_id,
-    google_login_view, MyTokenObtainPairView, usuario_autenticado,
-    listar_agendamentos, criar_agendamento, atualizar_agendamento, enderecos_usuario,
-    detalhar_usuario, listar_psicologos,
-    iniciar_oauth_mercadopago, oauth_callback_mercadopago, criar_pagamento_mercadopago,
+    stripe_webhook,
+    criar_stripe_connect_account,
+    criar_pagamento_stripe,
+    cadastrar_usuario,
+    get_csrf_token,
+    login_usuario,
+    rota_protegida,
+    logout,
+    listar_usuarios,
+    editar_usuario,
+    excluir_usuario,
+    listar_psiquiatras,
+    listar_psiquiatras_id,
+    google_login_view,
+    MyTokenObtainPairView,
+    usuario_autenticado,
+    listar_agendamentos,
+    criar_agendamento,
+    atualizar_agendamento,
+    enderecos_usuario,
+    detalhar_usuario,
+    listar_psicologos,
+    status_connect_account,
+
     listar_agendamentos_profissional, listar_agendamentos_paciente, deletar_agendamento,
     detalhar_agendamento, horarios_ocupados, upload_foto_usuario, listar_prontuarios, prontuario_detalhe_editar
 )
@@ -32,6 +51,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
+    path('api/stripe/pagamento/', criar_pagamento_stripe, name='criar_pagamento_stripe'),
+    path('api/stripe/webhook/', stripe_webhook, name='stripe_webhook'),
     path('admin/', admin.site.urls),
     path('cadastrar_usuario/', cadastrar_usuario, name='cadastrar_usuario'),
     path('login_usuario/', login_usuario, name='login_usuario'),
@@ -74,10 +95,10 @@ urlpatterns = [
 
     path('api/perfil/<int:id>/', detalhar_usuario, name='detalhar_usuario'),
 
-    # MERCADO PAGO
-    path('api/mercadopago/oauth/', iniciar_oauth_mercadopago, name='iniciar_oauth_mercadopago'),
-    path('api/mercadopago/oauth/callback/', oauth_callback_mercadopago, name='oauth_callback_mercadopago'),
-    path('api/mercadopago/pagamento/', criar_pagamento_mercadopago, name='criar_pagamento_mercadopago'),
+    # STRIPE 
+    path('api/stripe/connect/onboarding/<int:id>/', criar_stripe_connect_account, name='stripe_connect_onboarding'),
+    path('api/stripe/connect/status/<int:id>/', status_connect_account, name='stripe_connect_status'),
+
 
     # HORÁRIOS OCUPADOS
     path('api/horarios_ocupados/', horarios_ocupados, name='horarios_ocupados'),

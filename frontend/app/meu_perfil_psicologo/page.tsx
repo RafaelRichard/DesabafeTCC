@@ -1,3 +1,4 @@
+// Observação: O backend espera POST para onboarding e GET para status, ambos ignorando o parâmetro <id> na view.
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -26,8 +27,7 @@ interface Psicologo {
   especialidade?: string;
   telefone?: string;
   enderecos?: Endereco[];
-  mp_user_id?: string; // Mercado Pago user id
-  mp_access_token?: string; // Mercado Pago access token
+  stripe_account_id?: string; // Stripe Connect account id
   foto?: string;
 }
 
@@ -41,7 +41,8 @@ export default function PerfilPsicologo() {
   const [erro, setErro] = useState('');
   const [editando, setEditando] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [mpStatus, setMpStatus] = useState<string>('');
+  const [stripeStatus, setStripeStatus] = useState<'pending' | 'active' | 'incomplete'>('pending');
+  const [stripeOnboardingUrl, setStripeOnboardingUrl] = useState<string | null>(null);
   const [fotoTimestamp, setFotoTimestamp] = useState<number>(Date.now());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -67,11 +68,21 @@ export default function PerfilPsicologo() {
         setPsicologo(data);
         setForm(data);
         setEnderecos(data.enderecos || []);
-        // Checar status Mercado Pago
-        if (data.mp_user_id && data.mp_access_token) {
-          setMpStatus('active');
+        // Checar status Stripe Connect
+        const resStripe = await fetch(`${getBackendUrl()}/api/stripe/connect/status/${user.id}/`, {
+          credentials: 'include',
+        });
+        if (resStripe.ok) {
+          const stripeData = await resStripe.json();
+          if (stripeData.transfers_enabled) {
+            setStripeStatus('active');
+          } else {
+            setStripeStatus('pending');
+          }
+          setStripeOnboardingUrl(stripeData.url || null);
         } else {
-          setMpStatus('pending');
+          setStripeStatus('pending');
+          setStripeOnboardingUrl(null);
         }
       } catch (err: any) {
         setErro(err?.message || 'Erro ao carregar perfil.');
@@ -82,15 +93,35 @@ export default function PerfilPsicologo() {
     fetchPerfil();
   }, [router]);
 
-  // Exibe toast de sucesso/erro ao retornar do OAuth Mercado Pago
+
+  // Exibe toast de sucesso/erro ao retornar do onboarding Stripe
   useEffect(() => {
-    const mpStatus = searchParams?.get('mp_status');
-    if (mpStatus === 'success') {
-      toast.success('Conta Mercado Pago vinculada com sucesso!');
-    } else if (mpStatus === 'error') {
-      toast.error('Erro ao vincular conta Mercado Pago. Tente novamente.');
+    const stripeStatus = searchParams?.get('stripe_status');
+    if (stripeStatus === 'success') {
+      toast.success('Conta Stripe Connect vinculada com sucesso!');
+    } else if (stripeStatus === 'error') {
+      toast.error('Erro ao vincular conta Stripe. Tente novamente.');
     }
   }, [searchParams]);
+
+  // Função para iniciar onboarding Stripe Connect
+  const handleStripeOnboarding = async () => {
+    if (!psicologo) return;
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/stripe/connect/onboarding/${psicologo.id}/`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error(data.error || 'Erro ao iniciar onboarding Stripe.');
+      }
+    } catch (err) {
+      toast.error('Erro ao conectar com o Stripe.');
+    }
+  };
 
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -222,46 +253,6 @@ export default function PerfilPsicologo() {
     }
   };
 
-  // Função para onboarding Mercado Pago
-  // Eu envio o user_id como query param para o backend incluir no state do OAuth
-  const handleMercadoPagoOnboarding = async () => {
-    if (!psicologo) return;
-    try {
-      const res = await fetch(`${getBackendUrl()}/api/mercadopago/oauth/?user_id=${psicologo.id}`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-      const data = await res.json();
-      if (data.auth_url) {
-        window.location.href = data.auth_url;
-      } else {
-        toast.error(data.error || 'Erro ao iniciar onboarding Mercado Pago.');
-      }
-    } catch (err) {
-      toast.error('Erro ao conectar com o Mercado Pago.');
-    }
-  };
-
-  // Função para criar pagamento Mercado Pago (checkout)
-  const handleMercadoPagoCheckout = async () => {
-    if (!psicologo) return;
-    try {
-      const res = await fetch(`${getBackendUrl()}/api/mercadopago/checkout/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ user_id: psicologo.id }),
-      });
-      const data = await res.json();
-      if (data.checkout_url) {
-        window.location.href = data.checkout_url;
-      } else {
-        toast.error(data.error || 'Erro ao criar pagamento Mercado Pago.');
-      }
-    } catch (err) {
-      toast.error('Erro ao conectar com o Mercado Pago.');
-    }
-  };
 
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
   if (erro) return <div className="p-8 text-center text-red-600">{erro}</div>;
@@ -367,7 +358,7 @@ export default function PerfilPsicologo() {
           {renderInputOrText('crp', 'CRP')}
           {renderInputOrText('especialidade', 'Especialidade')}
           {renderInputOrText('valor_consulta', 'Valor da Consulta (R$)', 'number')}
-          {/* Campo Mercado Pago pode ser adicionado se necessário */}
+
         </div>
       </div>
       {/* Ações */}
@@ -438,27 +429,29 @@ export default function PerfilPsicologo() {
       </div>
       <ToastContainer position="top-center" autoClose={3000} />
 
-      {/* Mercado Pago - status e ação */}
+      {/* Stripe Connect - status e ação */}
       <div className="mt-8 flex flex-col items-center gap-3">
-        {mpStatus === 'active' ? (
-          <>
-            <span className="px-4 py-2 rounded bg-green-100 text-green-700 font-semibold">Conta Mercado Pago ativa</span>
-            <button
-              onClick={handleMercadoPagoCheckout}
-              className="mt-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold shadow"
-            >
-              Receber pagamento via Mercado Pago
-            </button>
-          </>
+        {stripeStatus === 'active' ? (
+          <span className="px-4 py-2 rounded bg-green-100 text-green-700 font-semibold">Conta Stripe Connect ativa</span>
         ) : (
           <>
-            <span className="px-4 py-2 rounded bg-yellow-100 text-yellow-700 font-semibold">Conta Mercado Pago pendente</span>
+            <span className="px-4 py-2 rounded bg-yellow-100 text-yellow-700 font-semibold">Conta Stripe Connect pendente</span>
             <button
-              onClick={handleMercadoPagoOnboarding}
+              onClick={handleStripeOnboarding}
               className="mt-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold shadow"
             >
-              Ativar recebimento Mercado Pago
+              Vincular Stripe Connect
             </button>
+            {stripeOnboardingUrl && (
+              <a
+                href={stripeOnboardingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-semibold shadow"
+              >
+                Continuar Onboarding Stripe
+              </a>
+            )}
           </>
         )}
       </div>

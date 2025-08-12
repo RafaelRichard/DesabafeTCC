@@ -122,30 +122,29 @@ const ClientOnlyHeader = () => {
   };
 
   return (
-    <header className="fixed top-0 w-full bg-white/80 backdrop-blur-md border-b border-gray-100 z-50 shadow-md">
-      <nav className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <header className="fixed top-0 w-full bg-gradient-to-r from-white via-purple-50 to-white/90 backdrop-blur-md border-b border-purple-100 z-50 shadow-md">
+      <nav className="container mx-auto px-4 sm:px-8 py-3">
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center space-x-2">
-            <GiBrain size={36} className="text-purple-600" />
-            <span className="text-lg font-semibold text-gray-900">DesabafeOnline</span>
+          <Link href="/" className="flex items-center gap-3 group">
+            <GiBrain size={38} className="text-purple-700 group-hover:scale-110 transition-transform" />
+            <span className="text-2xl font-extrabold text-purple-800 tracking-tight group-hover:text-purple-600 transition-colors">DesabafeOnline</span>
           </Link>
           {/* Desktop menu */}
-          <div className="hidden md:flex items-center space-x-6">
-            <Link href="/Sobre" className="text-sm text-gray-600 hover:text-purple-600 font-medium">Sobre Nós</Link>
-            {/* <Link href="/planos" className="text-sm text-gray-600 hover:text-purple-600 font-medium">Planos</Link> */}
+          <div className="hidden md:flex items-center gap-8">
+            <Link href="/Sobre" className="text-base text-gray-700 hover:text-purple-700 font-semibold transition-colors">Sobre Nós</Link>
             <div className="relative">
               <button
                 onClick={() => setDropdownOpen((prev) => !prev)}
-                className="flex items-center space-x-1 text-sm text-gray-600 hover:text-purple-600 font-medium focus:outline-none"
+                className="flex items-center gap-2 text-base text-gray-700 hover:text-purple-700 font-semibold focus:outline-none transition-colors"
               >
                 <FiUsers />
                 <span>Buscar Profissional</span>
                 <FiChevronDown />
               </button>
               {dropdownOpen && (
-                <div className="absolute top-full mt-2 bg-white shadow-md rounded-lg p-2 z-50 min-w-[160px]">
-                  <Link href="/psicologia" className="block px-4 py-2 text-sm hover:bg-purple-50 rounded" onClick={() => setDropdownOpen(false)}>Psicólogos</Link>
-                  <Link href="/psiquiatria" className="block px-4 py-2 text-sm hover:bg-purple-50 rounded" onClick={() => setDropdownOpen(false)}>Psiquiatras</Link>
+                <div className="absolute top-full mt-2 bg-white shadow-lg rounded-xl p-2 z-50 min-w-[180px] border border-purple-100 animate-fade-in">
+                  <Link href="/psicologia" className="block px-4 py-2 text-base hover:bg-purple-50 rounded transition-colors" onClick={() => setDropdownOpen(false)}>Psicólogos</Link>
+                  <Link href="/psiquiatria" className="block px-4 py-2 text-base hover:bg-purple-50 rounded transition-colors" onClick={() => setDropdownOpen(false)}>Psiquiatras</Link>
                 </div>
               )}
             </div>
@@ -158,22 +157,21 @@ const ClientOnlyHeader = () => {
         </div>
         {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden mt-4 bg-white/95 rounded-2xl shadow-lg p-6 flex flex-col gap-4 animate-fade-in">
-            <Link href="/Sobre" className="text-base text-gray-700 hover:text-purple-600 font-medium" onClick={() => setMobileMenuOpen(false)}>Sobre Nós</Link>
-            {/* <Link href="/planos" className="text-base text-gray-700 hover:text-purple-600 font-medium" onClick={() => setMobileMenuOpen(false)}>Planos</Link> */}
+          <div className="md:hidden mt-4 bg-white/95 rounded-2xl shadow-lg p-6 flex flex-col gap-4 animate-fade-in border border-purple-100">
+            <Link href="/Sobre" className="text-lg text-gray-800 hover:text-purple-700 font-semibold transition-colors" onClick={() => setMobileMenuOpen(false)}>Sobre Nós</Link>
             <div className="relative">
               <button
                 onClick={() => setDropdownOpen((prev) => !prev)}
-                className="flex items-center space-x-2 text-base text-gray-700 hover:text-purple-600 font-medium w-full"
+                className="flex items-center gap-2 text-lg text-gray-800 hover:text-purple-700 font-semibold w-full transition-colors"
               >
                 <FiUsers />
                 <span>Buscar Profissional</span>
                 <FiChevronDown />
               </button>
               {dropdownOpen && (
-                <div className="mt-2 bg-white shadow-md rounded-lg p-2 z-50 min-w-[160px]">
-                  <Link href="/psicologia" className="block px-4 py-2 text-sm hover:bg-purple-50 rounded" onClick={() => { setDropdownOpen(false); setMobileMenuOpen(false); }}>Psicólogos</Link>
-                  <Link href="/psiquiatria" className="block px-4 py-2 text-sm hover:bg-purple-50 rounded" onClick={() => { setDropdownOpen(false); setMobileMenuOpen(false); }}>Psiquiatras</Link>
+                <div className="mt-2 bg-white shadow-lg rounded-xl p-2 z-50 min-w-[180px] border border-purple-100 animate-fade-in">
+                  <Link href="/psicologia" className="block px-4 py-2 text-base hover:bg-purple-50 rounded transition-colors" onClick={() => { setDropdownOpen(false); setMobileMenuOpen(false); }}>Psicólogos</Link>
+                  <Link href="/psiquiatria" className="block px-4 py-2 text-base hover:bg-purple-50 rounded transition-colors" onClick={() => { setDropdownOpen(false); setMobileMenuOpen(false); }}>Psiquiatras</Link>
                 </div>
               )}
             </div>

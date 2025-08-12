@@ -55,11 +55,11 @@ class Usuario(models.Model):
     especialidade = models.CharField(max_length=50, blank=True, null=True)  # Campo para especialidade, agora opcional
     valor_consulta = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True)  # Valor da consulta
     foto = models.ImageField(upload_to=user_foto_upload_path, blank=True, null=True)  # Foto do profissional
-    # stripe_email = models.EmailField(blank=True, null=True, help_text='E-mail da conta Stripe do profissional')
-    # stripe_account_id = models.CharField(max_length=255, blank=True, null=True, help_text='ID da conta Stripe Connect')
+    stripe_email = models.EmailField(blank=True, null=True, help_text='E-mail da conta Stripe do profissional')
+    stripe_account_id = models.CharField(max_length=255, blank=True, null=True, help_text='ID da conta Stripe Connect')
     # Mercado Pago
-    mp_user_id = models.CharField(max_length=255, blank=True, null=True, help_text='ID da conta Mercado Pago Connect')
-    mp_access_token = models.CharField(max_length=255, blank=True, null=True, help_text='Access Token Mercado Pago')
+    # mp_user_id = models.CharField(max_length=255, blank=True, null=True, help_text='ID da conta Mercado Pago Connect')
+    # mp_access_token = models.CharField(max_length=255, blank=True, null=True, help_text='Access Token Mercado Pago')
 
     def clean(self):
         # Validações personalizadas
@@ -88,6 +88,10 @@ class Agendamento(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pendente')
     link_consulta = models.URLField(max_length=255, blank=True, null=True)
     observacoes = models.TextField(blank=True, null=True)
+
+    # Novos campos para split de pagamento
+    valor_recebido_profissional = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Valor recebido pelo profissional (R$)")
+    valor_plataforma = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Valor recebido pela plataforma (R$)")
     data_criacao = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

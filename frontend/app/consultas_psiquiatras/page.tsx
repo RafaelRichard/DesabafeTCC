@@ -20,6 +20,20 @@ interface ConsultaEvent {
 }
 
 export default function ConsultasPsiquiatras() {
+  // Exibe toast de sucesso/erro após redirecionamento do pagamento
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const status = params.get('status');
+      if (status === 'sucesso') {
+        toast.success('Pagamento realizado com sucesso!');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (status === 'erro') {
+        toast.error('Ocorreu um erro no pagamento. Tente novamente.');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
   const [consultas, setConsultas] = useState<ConsultaEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedConsulta, setSelectedConsulta] = useState<any | null>(null);
@@ -294,6 +308,16 @@ export default function ConsultasPsiquiatras() {
                   <div><b>Status:</b> <span className={`font-semibold ${selectedConsulta.status === 'pendente' ? 'text-yellow-600' : selectedConsulta.status === 'confirmado' ? 'text-emerald-600' : 'text-red-600'}`}>{selectedConsulta.status}</span></div>
                   {selectedConsulta.observacao && <div><b>Observação:</b> {selectedConsulta.observacao}</div>}
                   {selectedConsulta.link_consulta && <div><b>Link da Consulta:</b> <a href={selectedConsulta.link_consulta} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-900 transition">Acessar Consulta</a></div>}
+                {selectedConsulta.link_consulta && (
+                  <div>
+                    <b>Link da Consulta:</b>{' '}
+                    {selectedConsulta.status === 'cancelado' ? (
+                      <span className="text-gray-400 cursor-not-allowed" title="Consulta cancelada - link desabilitado">Acessar Consulta (cancelada)</span>
+                    ) : (
+                      <a href={selectedConsulta.link_consulta} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-900 transition">Acessar Consulta</a>
+                    )}
+                  </div>
+                )}
                 </div>
               </div>
             )}

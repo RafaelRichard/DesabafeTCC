@@ -8,6 +8,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { getBackendUrl } from '../../utils/backend';
+import { loadStripe } from '@stripe/stripe-js';
 
 interface Profissional {
   id: number;
@@ -207,7 +208,7 @@ export default function Agendamento() {
     }
   };
 
-  // Função para iniciar o pagamento Mercado Pago
+  // Função para iniciar o pagamento Stripe
   const handlePagamento = async () => {
     if (!usuario || !profissional) {
       toast.error('Dados insuficientes para pagamento.', {
@@ -240,14 +241,15 @@ export default function Agendamento() {
     }
     const valorConsulta = profissional.valor_consulta ? Number(profissional.valor_consulta) : 200;
     try {
-      const res = await fetch(`${getBackendUrl()}/api/mercadopago/pagamento/`, {
+      // Cria sessão Stripe Checkout
+      const res = await fetch(`${getBackendUrl()}/api/stripe/pagamento/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome_produto: `Consulta com ${profissional.nome}`,
           preco: valorConsulta,
-          quantidade: 1,
           profissional_id: profissional.id,
+          usuario_id: usuario.id,
         }),
       });
       const data = await res.json();
@@ -267,12 +269,13 @@ export default function Agendamento() {
           credentials: 'include',
           body: JSON.stringify(agendamento),
         });
+        // Redireciona para o Stripe Checkout
         window.location.href = data.checkout_url;
       } else {
-      toast.error(data.error || 'Erro ao criar pagamento Mercado Pago.', {
-        position: 'top-center',
-        autoClose: 4000,
-      });
+        toast.error(data.error || 'Erro ao criar pagamento Stripe.', {
+          position: 'top-center',
+          autoClose: 4000,
+        });
       }
     } catch (err) {
       toast.error('Erro ao conectar com o servidor de pagamento.', {

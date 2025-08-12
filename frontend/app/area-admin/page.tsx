@@ -88,9 +88,9 @@ export default function AreaDoAdmin() {
                 )}
                 <h2 className="text-2xl font-semibold mb-8 text-center lg:text-left">Admin Dashboard</h2>
                 <nav className="flex flex-col space-y-4">
-                    <Link href="/admin/usuarios" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
+                    <Link href="/cadastro_usuario" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
                         <FiUsers size={20} />
-                        <span>Gerenciar Usuários</span>
+                        <span>Cadastrar Usuário</span>
                     </Link>
                     <Link href="/admin/consultas" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
                         <FiClipboard size={20} />

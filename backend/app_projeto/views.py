@@ -18,7 +18,7 @@ from .serializers import MyTokenObtainPairSerializer
 from .permissions import IsAdmin, IsPaciente, IsPsicologo, IsPsiquiatra
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status   
+from rest_framework import status       
 from .serializers import UsuarioSerializer, AgendamentoSerializer, EnderecoSerializer, UsuarioComEnderecoSerializer, ProntuarioSerializer
 from .models import Agendamento, AgendamentoHistorico
 import jwt
@@ -43,11 +43,15 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import Prontuario, Usuario
 from .serializers import ProntuarioSerializer
-
+import stripe
+from django.conf import settings
+from .models import Agendamento, Usuario
+import json
 # Endpoint para detalhar e editar prontuário (GET e PATCH)
 from rest_framework.decorators import api_view
 from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
+
 
 
 def get_csrf_token(request):
@@ -708,129 +712,93 @@ def listar_psicologos(request, id=None):
         serializer = UsuarioSerializer(psicologos, many=True)
         return Response(serializer.data)
 
-# --- INÍCIO MERCADO PAGO ---
-# Aqui estou importando as bibliotecas necessárias para integração com o Mercado Pago
-import mercadopago
-from urllib.parse import urlencode
 
-# Endpoint para iniciar o OAuth do Mercado Pago (profissional autoriza o app)
-@csrf_exempt
-def iniciar_oauth_mercadopago(request):
-    # Aqui eu gero a URL de autorização do Mercado Pago para o profissional vincular a conta
-    # Eu pego o user_id do profissional que está tentando vincular
-    user_id = request.GET.get('user_id') or request.POST.get('user_id')
-    client_id = settings.MERCADOPAGO_CLIENT_ID
-    redirect_uri = settings.MERCADOPAGO_REDIRECT_URI
-    base_url = 'https://auth.mercadopago.com.br/authorization'
-    # Eu adiciono o parâmetro state com o user_id para identificar o profissional no callback
-    params = {
-        'client_id': client_id,
-        'response_type': 'code',
-        'platform_id': 'mp',
-        'redirect_uri': redirect_uri,
-        'state': user_id,  # user_id vai no state
-    }
-    from urllib.parse import urlencode
-    url = f"{base_url}?{urlencode(params)}"
-    return JsonResponse({'auth_url': url})
+import stripe
+from django.conf import settings
 
-# Endpoint para receber o callback do OAuth e salvar o access_token do profissional
-@csrf_exempt
-def oauth_callback_mercadopago(request):
-    # Aqui eu troco o code pelo access_token do profissional e salvo no banco
-    code = request.GET.get('code')
-    user_id = request.GET.get('state')  # Envie o user_id no state para saber quem está autenticando
-    if not code or not user_id:
-        # Redireciona para o frontend com erro
-        return HttpResponseRedirect("http://localhost:3000/meu_perfil_psicologo?mp_status=error")
-    client_id = settings.MERCADOPAGO_CLIENT_ID
-    client_secret = settings.MERCADOPAGO_CLIENT_SECRET
-    redirect_uri = settings.MERCADOPAGO_REDIRECT_URI
-    token_url = 'https://api.mercadopago.com/oauth/token'
-    data = {
-        'grant_type': 'authorization_code',
-        'client_id': client_id,
-        'client_secret': client_secret,
-        'code': code,
-        'redirect_uri': redirect_uri,
-    }
-    response = requests.post(token_url, data=data)
-    if response.status_code == 200:
-        token_data = response.json()
-        mp_user_id = token_data['user_id']
-        mp_access_token = token_data['access_token']
-        usuario = Usuario.objects.get(id=user_id)
-        usuario.mp_user_id = mp_user_id
-        usuario.mp_access_token = mp_access_token
-        usuario.save()
-        # Redireciona para o perfil correto com sucesso
-        perfil = 'meu_perfil_psicologo' if usuario.role == 'Psicologo' else 'meu_perfil_psiquiatra'
-        return HttpResponseRedirect(f"http://localhost:3000/{perfil}?mp_status=success")
-    else:
-        # Redireciona para o perfil correto com erro
-        try:
-            usuario = Usuario.objects.get(id=user_id)
-            perfil = 'meu_perfil_psicologo' if usuario.role == 'Psicologo' else 'meu_perfil_psiquiatra'
-        except:
-            perfil = 'meu_perfil_psicologo'
-        return HttpResponseRedirect(f"http://localhost:3000/{perfil}?mp_status=error")
-# --- FIM MERCADO PAGO ---
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 @csrf_exempt
-def criar_pagamento_mercadopago(request):
-    # Cria um pagamento para o profissional usando o access_token dele
+def criar_pagamento_stripe(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método não permitido'}, status=405)
     try:
         data = json.loads(request.body)
+        preco = float(data.get('preco', 100))
+        nome_produto = data.get('nome_produto', 'Consulta Online')
+        profissional_id = data.get('profissional_id')
+        if not profissional_id:
+            return JsonResponse({'error': 'Profissional não informado.'}, status=400)
+        profissional = Usuario.objects.filter(id=profissional_id).first()
+        if not profissional or not profissional.stripe_account_id:
+            return JsonResponse({'error': 'Profissional sem conta Stripe Connect.'}, status=400)
+        preco_cents = int(preco * 100)
+        # Split: 80% profissional, 20% plataforma
+        split_percent = 0.8
+        amount_to_profissional = int(preco_cents * split_percent)
+        application_fee = preco_cents - amount_to_profissional
+
+        # Definir URLs de sucesso/erro conforme o role do usuário
+        usuario_id = data.get('usuario_id')
+        success_url = 'http://localhost:3000/'
+        cancel_url = 'http://localhost:3000/'
+        if usuario_id:
+            try:
+                usuario = Usuario.objects.get(id=usuario_id)
+                if usuario.role == 'Paciente':
+                    success_url = 'http://localhost:3000/consultas_paciente?status=sucesso'
+                    cancel_url = 'http://localhost:3000/consultas_paciente?status=erro'
+                elif usuario.role == 'Psicologo':
+                    success_url = 'http://localhost:3000/consultas_psicologos?status=sucesso'
+                    cancel_url = 'http://localhost:3000/consultas_psicologos?status=erro'
+                elif usuario.role == 'Psiquiatra':
+                    success_url = 'http://localhost:3000/consultas_psiquiatras?status=sucesso'
+                    cancel_url = 'http://localhost:3000/consultas_psiquiatras?status=erro'
+            except Usuario.DoesNotExist:
+                pass
+
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'brl',
+                    'product_data': {   
+                        'name': nome_produto,
+                    },
+                    'unit_amount': preco_cents,
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            payment_intent_data={
+                'application_fee_amount': application_fee,
+                'transfer_data': {
+                    'destination': profissional.stripe_account_id,
+                },
+            },
+            success_url=success_url,
+            cancel_url=cancel_url,
+        )
+        # Salva o session_id no agendamento pendente mais recente do usuário e profissional
+        usuario_id = data.get('usuario_id')
+        from .models import Agendamento
+        agendamento = None
+        if usuario_id:
+            agendamento = Agendamento.objects.filter(
+                usuario_id=usuario_id,
+                status='pendente',
+                psiquiatra_id=profissional_id if profissional.role == 'Psiquiatra' else None,
+                psicologo_id=profissional_id if profissional.role == 'Psicologo' else None
+            ).order_by('-id').first()
+            if agendamento:
+                agendamento.stripe_session_id = session.id
+                agendamento.valor_recebido_profissional = amount_to_profissional / 100.0
+                agendamento.valor_plataforma = application_fee / 100.0
+                agendamento.save()
+        return JsonResponse({'checkout_url': session.url})
     except Exception as e:
-        return JsonResponse({'error': f'JSON inválido: {str(e)}'}, status=400)
-    profissional_id = data.get('profissional_id')
-    preco = float(data.get('preco', 100))
-    nome_produto = data.get('nome_produto', 'Consulta Online')
-    if not profissional_id:
-        return JsonResponse({'error': 'profissional_id ausente'}, status=400)
-    try:
-        usuario = Usuario.objects.get(id=profissional_id)
-    except Usuario.DoesNotExist:
-        return JsonResponse({'error': 'Profissional não encontrado'}, status=400)
-    if not usuario.mp_access_token:
-        return JsonResponse({'error': 'Profissional não vinculado ao Mercado Pago.'}, status=400)
-    sdk = mercadopago.SDK(usuario.mp_access_token)
-    ngrok_url = "https://70a0ae26b12e.ngrok-free.app"
-    marketplace_fee = round(preco * 0.10, 2)
-    preference_data = {
-        "items": [
-            {
-                "title": nome_produto,
-                "quantity": 1,
-                "currency_id": "BRL",
-                "unit_price": preco
-            }
-        ],
-        "back_urls": {
-            "success": f"{ngrok_url}/pagamentoplano?status=sucesso",
-            "failure": f"{ngrok_url}/pagamentoplano?status=erro",
-            "pending": f"{ngrok_url}/pagamentoplano?status=pendente"
-        },
-        "auto_return": "approved",
-        "marketplace_fee": marketplace_fee,
-        "payment_methods": {
-            "excluded_payment_types": [
-                {"id": "ticket"},        # Exclui boleto
-                {"id": "atm"},           # Exclui lotérica/ATM
-                {"id": "prepaid_card"}   # Exclui cartão pré-pago
-            ],
-            "included_payment_methods": [
-                {"id": "pix"}
-            ]
-        }
-    }
-    preference_response = sdk.preference().create(preference_data)
-    if preference_response.get('status') == 201:
-        return JsonResponse({'checkout_url': preference_response.get('response', {}).get('init_point')})
-    else:
-        return JsonResponse({'error': 'Erro ao criar pagamento no Mercado Pago.', 'mp_response': preference_response}, status=400)
+        return JsonResponse({'error': str(e)}, status=400)
+
 
 @api_view(['GET'])
 def listar_agendamentos_profissional(request):
@@ -878,6 +846,8 @@ def listar_agendamentos_profissional(request):
             'status': ag.status,
             'observacao': ag.observacoes or '',
             'link_consulta': ag.link_consulta or '',
+            'valor_recebido_profissional': float(ag.valor_recebido_profissional) if ag.valor_recebido_profissional is not None else 0.0,
+            'valor_plataforma': float(ag.valor_plataforma) if ag.valor_plataforma is not None else 0.0,
         })
     return Response(data)
 
@@ -941,14 +911,6 @@ def detalhar_agendamento(request, id):
 
 @api_view(['GET'])
 def horarios_ocupados(request):
-    """
-    Retorna os horários ocupados de um profissional (psiquiatra ou psicologo) em uma data.
-    Parâmetros GET:
-      - profissional_id: id do profissional
-      - tipo: 'psiquiatra' ou 'psicologo'
-      - data: 'YYYY-MM-DD'
-    Retorna: ["09:00", "10:30", ...]
-    """
     profissional_id = request.GET.get('profissional_id')
     tipo = request.GET.get('tipo')
     data_str = request.GET.get('data')
@@ -975,8 +937,6 @@ def horarios_ocupados(request):
     intervalo = timedelta(minutes=30)
     for ag in ags:
         inicio = ag.data_hora
-        # Se no futuro houver campo de duração, use: duracao = getattr(ag, 'duracao', 30)
-        # Fim = início + 30 minutos (padrão)
         fim = inicio + intervalo
         atual = inicio
         while atual < fim:
@@ -1121,3 +1081,152 @@ def prontuario_detalhe_editar(request, id):
             return Response({'success': 'Prontuário atualizado com sucesso.'})
         except Exception as e:
             return Response({'error': f'Erro ao atualizar prontuário: {str(e)}'}, status=400)
+        
+@csrf_exempt
+def stripe_webhook(request):
+    
+    payload = request.body
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+    endpoint_secret = getattr(settings, 'STRIPE_WEBHOOK_SECRET', None)
+    event = None
+    try:
+        if endpoint_secret:
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, endpoint_secret
+            )
+        else:
+            event = json.loads(payload)
+    except Exception as e:
+        return JsonResponse({'error': f'Webhook error: {str(e)}'}, status=400)
+
+    # Processa eventos relevantes
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        pass
+
+    return JsonResponse({'status': 'success'})
+
+@csrf_exempt
+@api_view(['POST'])
+def criar_stripe_connect_account(request, id=None):
+    """
+    Cria uma conta Stripe Connect para o profissional e retorna o link de onboarding.
+    O usuário deve estar autenticado e ser profissional (Psiquiatra ou Psicologo).
+    Agora também checa se a capability 'transfers' está habilitada.
+    """
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    try:
+        import jwt
+        from django.conf import settings
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+    if usuario.role not in ['Psiquiatra', 'Psicologo']:
+        return Response({'error': 'Apenas profissionais podem criar conta Stripe Connect.'}, status=403)
+    # Se já tem conta Stripe, retorna status detalhado
+    if usuario.stripe_account_id:
+        try:
+            account = stripe.Account.retrieve(usuario.stripe_account_id)
+            transfers_status = account.get('capabilities', {}).get('transfers')
+            details_submitted = account.get('details_submitted', False)
+            if transfers_status == 'active':
+                return Response({
+                    'message': 'Conta Stripe Connect pronta para receber pagamentos.',
+                    'stripe_account_id': usuario.stripe_account_id,
+                    'transfers_enabled': True,
+                    'url': None
+                })
+            else:
+                # Sempre gera link de onboarding se transfers não está ativa
+                account_link = stripe.AccountLink.create(
+                    account=usuario.stripe_account_id,
+                    refresh_url='https://localhost:3000/meu_perfil_psiquiatra',
+                    return_url='https://localhost:3000/meu_perfil_psiquiatra',
+                    type='account_onboarding',
+                )
+                msg = 'Sua conta Stripe está vinculada, mas ainda não está pronta para receber pagamentos. Finalize o onboarding no Stripe para liberar os pagamentos.'
+                return Response({
+                    'message': msg,
+                    'stripe_account_id': usuario.stripe_account_id,
+                    'transfers_enabled': False,
+                    'url': account_link.url
+                })
+        except Exception as e:
+            return Response({'error': f'Erro ao consultar conta Stripe: {str(e)}'}, status=400)
+    # Cria conta Stripe Connect se não existir
+    if not usuario.stripe_account_id:
+        account = stripe.Account.create(
+            type='express',
+            country='BR',
+            email=usuario.email,
+            capabilities={
+                'transfers': {'requested': True},
+                'card_payments': {'requested': True},
+            },
+            business_type='individual',
+        )
+        usuario.stripe_account_id = account['id']
+        usuario.stripe_email = usuario.email
+        usuario.save()
+    # Gera link de onboarding
+    account_link = stripe.AccountLink.create(
+        account=usuario.stripe_account_id,
+        refresh_url='https://localhost:3000/meu_perfil_psiquiatra',
+        return_url='https://localhost:3000/meu_perfil_psiquiatra',
+        type='account_onboarding',
+    )
+    return Response({'url': account_link.url, 'stripe_account_id': usuario.stripe_account_id, 'transfers_enabled': False})
+
+@csrf_exempt
+@api_view(['GET'])
+def status_connect_account(request, id=None):
+    """
+    Retorna o status da conta Stripe Connect do profissional autenticado.
+    Se transfers não estiver ativo, retorna o link de onboarding.
+    """
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    try:
+        import jwt
+        from django.conf import settings
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+    if usuario.role not in ['Psiquiatra', 'Psicologo']:
+        return Response({'error': 'Apenas profissionais podem consultar status Stripe Connect.'}, status=403)
+    if not usuario.stripe_account_id:
+        return Response({
+            'stripe_account_id': None,
+            'transfers_enabled': False,
+            'url': None
+        })
+    try:
+        account = stripe.Account.retrieve(usuario.stripe_account_id)
+        transfers_status = account.get('capabilities', {}).get('transfers')
+        if transfers_status == 'active':
+            return Response({
+                'stripe_account_id': usuario.stripe_account_id,
+                'transfers_enabled': True,
+                'url': None
+            })
+        else:
+            account_link = stripe.AccountLink.create(
+                account=usuario.stripe_account_id,
+                refresh_url='https://localhost:3000/meu_perfil_psiquiatra',
+                return_url='https://localhost:3000/meu_perfil_psiquiatra',
+                type='account_onboarding',
+            )
+            return Response({
+                'stripe_account_id': usuario.stripe_account_id,
+                'transfers_enabled': False,
+                'url': account_link.url
+            })
+    except Exception as e:
+        return Response({'error': f'Erro ao consultar conta Stripe: {str(e)}'}, status=400)
