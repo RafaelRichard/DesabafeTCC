@@ -1,3 +1,4 @@
+
 from django.http import JsonResponse, HttpResponseRedirect
 import json
 import re
@@ -51,7 +52,7 @@ import json
 from rest_framework.decorators import api_view
 from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
-
+from django.core.mail import EmailMultiAlternatives
 
 
 def get_csrf_token(request):
@@ -263,50 +264,57 @@ def create_jwt_for_user(user):
     return str(refresh.access_token)
 
 
-# Recuperação de Senha (envio de e-mail para redefinir a senha)
-# class RecuperarSenhaAPIView(APIView):
-#     def post(self, request):
-#         email = request.data.get('email')
-#         try:
-#             user = User.objects.get(email=email)
-#             uid = urlsafe_base64_encode(force_bytes(user.pk))
-#             token = default_token_generator.make_token(user)
-#             reset_url = f"http://localhost:3000/recuperar-senha/{uid}/{token}/"
+class RecuperarSenhaAPIView(APIView):
+    def post(self, request):
+        email = request.data.get('email')
+        try:
+            user = Usuario.objects.get(email=email)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            reset_url = f"http://localhost:3000/recuperar-senha/{uid}/{token}/"
+            subject = 'Redefinição de Senha - Desabafe'
+            text_content = f'Olá,\n\nRecebemos uma solicitação para redefinir sua senha.\n\nClique no link abaixo para criar uma nova senha:\n{reset_url}\n\nSe você não solicitou, ignore este e-mail.'
+            html_content = f'''
+                <div style="font-family: Arial, sans-serif; color: #222;">
+                <h2>Redefinição de Senha</h2>
+                <p>Olá,</p>
+                <p>Recebemos uma solicitação para redefinir sua senha.</p>
+                                    <p><a href="{reset_url}" style="background: #6366f1; color: #fff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">Clique aqui para redefinir sua senha</a></p>
+                                    <p>Ou copie e cole o link no navegador:<br><span style="color:#6366f1">{reset_url}</span></p>
+                                    <p style="font-size: 0.9em; color: #888;">Se você não solicitou, ignore este e-mail.</p>
+                                    <hr style="margin: 24px 0;">
+                                    <p style="font-size: 0.8em; color: #aaa;">Desabafe - Equipe de Suporte</p>
+                                </div>
+                        '''
+            msg = EmailMultiAlternatives(subject, text_content, 'suportedesabafe@gmail.com', [email])
+            msg.attach_alternative(html_content, "text/html")
+            msg.send(fail_silently=False)
 
-#             send_mail(
-#                 'Redefinição de Senha',
-#                 f'Clique no link para redefinir sua senha: {reset_url}',
-#                 'noreply@seudominio.com',
-#                 [email],
-#                 fail_silently=False,
-#             )
-
-#             return Response({'detail': 'Email de recuperação enviado.'})
-#         except User.DoesNotExist:
-#             return Response({'detail': 'Erro interno no servidor.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'detail': 'Email de recuperação enviado.'})
+        except Usuario.DoesNotExist:
+            return Response({'detail': 'Erro interno no servidor.'}, status=status.HTTP_404_NOT_FOUND)
 
 
-# Redefinir Senha
-# class RedefinirSenhaAPIView(APIView):
-#     def post(self, request, uidb64, token):
-#         try:
-#             uid = urlsafe_base64_decode(uidb64).decode('utf-8')
-#             user = get_user_model().objects.get(pk=uid)
+class RedefinirSenhaAPIView(APIView):
+    def post(self, request, uidb64, token):
+        try:
+            uid = urlsafe_base64_decode(uidb64).decode('utf-8')
+            user = Usuario.objects.get(pk=uid)
 
-#             if not default_token_generator.check_token(user, token):
-#                 return Response({'detail': 'Token inválido ou expirado.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not default_token_generator.check_token(user, token):
+                return Response({'detail': 'Token inválido ou expirado.'}, status=status.HTTP_400_BAD_REQUEST)
 
-#             nova_senha = request.data.get('password')
-#             if not nova_senha:
-#                 return Response({'detail': 'Nova senha não fornecida.'}, status=status.HTTP_400_BAD_REQUEST)
+            nova_senha = request.data.get('password')
+            if not nova_senha:
+                return Response({'detail': 'Nova senha não fornecida.'}, status=status.HTTP_400_BAD_REQUEST)
 
-#             user.set_password(nova_senha)
-#             user.save()
+            user.senha = make_password(nova_senha)
+            user.save()
 
-#             return Response({'detail': 'Senha redefinida com sucesso.'}, status=status.HTTP_200_OK)
+            return Response({'detail': 'Senha redefinida com sucesso.'}, status=status.HTTP_200_OK)
 
-#         except (TypeError, ValueError, OverflowError, get_user_model().DoesNotExist):
-#             return Response({'detail': 'Token inválido ou usuário não encontrado.'}, status=status.HTTP_400_BAD_REQUEST)
+        except (TypeError, ValueError, OverflowError, Usuario.DoesNotExist):
+            return Response({'detail': 'Token inválido ou usuário não encontrado.'}, status=status.HTTP_400_BAD_REQUEST)
 
         
         
@@ -784,17 +792,23 @@ def criar_pagamento_stripe(request):
         from .models import Agendamento
         agendamento = None
         if usuario_id:
-            agendamento = Agendamento.objects.filter(
+            agendamento_qs = Agendamento.objects.filter(
                 usuario_id=usuario_id,
-                status='pendente',
+                status__in=['pendente', 'confirmado'],
                 psiquiatra_id=profissional_id if profissional.role == 'Psiquiatra' else None,
                 psicologo_id=profissional_id if profissional.role == 'Psicologo' else None
-            ).order_by('-id').first()
+            ).order_by('-id')
+            agendamento = agendamento_qs.first()
             if agendamento:
                 agendamento.stripe_session_id = session.id
                 agendamento.valor_recebido_profissional = amount_to_profissional / 100.0
                 agendamento.valor_plataforma = application_fee / 100.0
+                agendamento.status = 'paga'
                 agendamento.save()
+            else:
+                # Log detalhado para depuração
+                print(f"[ERRO PAGAMENTO] Nenhum agendamento pendente encontrado para usuario_id={usuario_id}, profissional_id={profissional_id}, role={profissional.role}")
+                return JsonResponse({'error': 'Nenhum agendamento pendente encontrado para salvar o pagamento. Agende a consulta antes de pagar.'}, status=400)
         return JsonResponse({'checkout_url': session.url})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
@@ -815,15 +829,20 @@ def listar_agendamentos_profissional(request):
         usuario = Usuario.objects.get(id=user_id)
     except Exception:
         return Response({'error': 'Usuário não autenticado.'}, status=401)
-    if usuario.role not in ['Psicologo', 'Psiquiatra']:
-        return Response({'error': 'Apenas profissionais podem acessar suas consultas.'}, status=403)
-    # Busca agendamentos para psicólogos e psiquiatras
-    if usuario.role == 'Psiquiatra':
+    if usuario.role == 'Admin':
+        tipo = request.GET.get('tipo')
+        if tipo == 'psiquiatra':
+            agendamentos = Agendamento.objects.filter(psiquiatra__isnull=False)
+        elif tipo == 'psicologo':
+            agendamentos = Agendamento.objects.filter(psicologo__isnull=False)
+        else:
+            agendamentos = Agendamento.objects.all()
+    elif usuario.role == 'Psiquiatra':
         agendamentos = Agendamento.objects.filter(psiquiatra=usuario)
     elif usuario.role == 'Psicologo':
         agendamentos = Agendamento.objects.filter(psicologo=usuario)
     else:
-        agendamentos = Agendamento.objects.none()
+        return Response({'error': 'Apenas profissionais ou admin podem acessar suas consultas.'}, status=403)
     data = []
     for ag in agendamentos:
         paciente = ag.usuario
@@ -867,9 +886,19 @@ def listar_agendamentos_paciente(request):
         usuario = Usuario.objects.get(id=user_id)
     except Exception:
         return Response({'error': 'Usuário não autenticado.'}, status=401)
-    agendamentos = Agendamento.objects.filter(usuario=usuario)
+    if usuario.role == 'Admin':
+        tipo = request.GET.get('tipo')
+        if tipo == 'psiquiatra':
+            agendamentos = Agendamento.objects.filter(psiquiatra__isnull=False)
+        elif tipo == 'psicologo':
+            agendamentos = Agendamento.objects.filter(psicologo__isnull=False)
+        else:
+            agendamentos = Agendamento.objects.all()
+    else:
+        agendamentos = Agendamento.objects.filter(usuario=usuario)
     data = []
     for ag in agendamentos:
+        paciente = ag.usuario
         profissional = ag.psiquiatra if ag.psiquiatra else ag.psicologo
         profissional_dict = None
         if profissional:
@@ -884,11 +913,20 @@ def listar_agendamentos_paciente(request):
                 'especialidade': getattr(profissional, 'especialidade', None),
                 'valor_consulta': str(getattr(profissional, 'valor_consulta', '')),
             }
-        # Garante que a data/hora seja convertida para o timezone local do servidor
         from django.utils.timezone import localtime
         data_hora_local = localtime(ag.data_hora) if ag.data_hora else None
+        # Sempre incluir os campos de valor, independente do tipo de usuário
         data.append({
             'id': ag.id,
+            'paciente': {
+                'id': paciente.id,
+                'nome': paciente.nome,
+                'email': paciente.email,
+                'telefone': paciente.telefone,
+                'cpf': paciente.cpf,
+                'status': paciente.status,
+                'role': paciente.role,
+            },
             'profissional': profissional_dict,
             'data_iso': data_hora_local.isoformat() if data_hora_local else '',
             'data': data_hora_local.strftime('%Y-%m-%d') if data_hora_local else '',
@@ -896,6 +934,8 @@ def listar_agendamentos_paciente(request):
             'status': ag.status,
             'observacao': ag.observacoes or '',
             'link_consulta': ag.link_consulta or '',
+            'valor_pago_profissional': float(ag.valor_recebido_profissional) if ag.valor_recebido_profissional is not None else 0.0,
+            'valor_plataforma': float(ag.valor_plataforma) if ag.valor_plataforma is not None else 0.0,
         })
     return Response(data)
 
@@ -929,9 +969,9 @@ def horarios_ocupados(request):
         return Response({'error': 'Profissional não encontrado.'}, status=404)
     # Busca agendamentos confirmados ou pendentes para o dia
     if tipo == 'psiquiatra':
-        ags = Agendamento.objects.filter(psiquiatra=profissional, data_hora__date=data, status__in=['pendente', 'confirmado'])
+        ags = Agendamento.objects.filter(psiquiatra=profissional, data_hora__date=data, status__in=['pendente', 'confirmado', 'paga'])
     else:
-        ags = Agendamento.objects.filter(psicologo=profissional, data_hora__date=data, status__in=['pendente', 'confirmado'])
+        ags = Agendamento.objects.filter(psicologo=profissional, data_hora__date=data, status__in=['pendente', 'confirmado', 'paga'])
 
     horarios_ocupados = set()
     intervalo = timedelta(minutes=30)
@@ -1230,3 +1270,51 @@ def status_connect_account(request, id=None):
             })
     except Exception as e:
         return Response({'error': f'Erro ao consultar conta Stripe: {str(e)}'}, status=400)
+    
+@csrf_exempt
+@api_view(["POST"])
+def estornar_pagamento_stripe(request, agendamento_id):
+    """
+    Realiza o estorno (refund) do pagamento Stripe referente ao agendamento.
+    """
+    try:
+        from .models import Agendamento
+        agendamento = Agendamento.objects.get(id=agendamento_id)
+        if not agendamento.stripe_session_id:
+            return JsonResponse({"error": "Agendamento não possui session_id Stripe."}, status=400)
+        session = stripe.checkout.Session.retrieve(agendamento.stripe_session_id)
+        payment_intent = session.get("payment_intent")
+        if not payment_intent:
+            return JsonResponse({"error": "Session Stripe sem payment_intent."}, status=400)
+        refund = stripe.Refund.create(payment_intent=payment_intent)
+        agendamento.status = "cancelado"
+        agendamento.save()
+
+        # Envia e-mail ao paciente informando o estorno
+        paciente = agendamento.usuario
+        email = paciente.email
+        profissional = agendamento.psiquiatra or agendamento.psicologo
+        profissional_nome = profissional.nome if profissional else "Profissional"
+        data_hora = agendamento.data_hora.strftime('%d/%m/%Y %H:%M') if agendamento.data_hora else "-"
+        subject = 'Estorno de pagamento - Desabafe'
+        text_content = f"Olá,\n\nSeu pagamento referente à consulta com {profissional_nome} em {data_hora} foi estornado com sucesso.\n\nSe tiver dúvidas, entre em contato com o suporte.\n\nEquipe Desabafe."
+        html_content = f"""
+            <div style='font-family: Arial, sans-serif; color: #222;'>
+            <h2>Estorno de Pagamento</h2>
+            <p>Olá,</p>
+            <p>Seu pagamento referente à consulta com <b>{profissional_nome}</b> em <b>{data_hora}</b> foi <span style='color:#e53e3e;font-weight:bold;'>estornado</span> com sucesso.</p>
+            <p>O valor será devolvido ao seu método de pagamento em breve.</p>
+            <p style='font-size: 0.9em; color: #888;'>Se tiver dúvidas, entre em contato com o suporte.</p>
+            <hr style='margin: 24px 0;'>
+            <p style='font-size: 0.8em; color: #aaa;'>Desabafe - Equipe de Suporte</p>
+            </div>
+        """
+        msg = EmailMultiAlternatives(subject, text_content, 'suportedesabafe@gmail.com', [email])
+        msg.attach_alternative(html_content, "text/html")
+        msg.send(fail_silently=True)
+
+        return JsonResponse({"success": True, "refund_id": refund.id})
+    except Agendamento.DoesNotExist:
+        return JsonResponse({"error": "Agendamento não encontrado."}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)

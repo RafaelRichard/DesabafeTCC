@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { refundAgendamentoStripe } from "../utils/backend";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale/pt-BR";
 import { Dialog } from '@headlessui/react';
@@ -42,6 +43,15 @@ export default function ConsultasPaciente() {
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
   const [selectedDate, setSelectedDate] = useState(today);
   const [calendarMonth, setCalendarMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  // Modal para mostrar todas as consultas do dia
+  const [showAllModal, setShowAllModal] = useState(false);
+  const [allConsultasDia, setAllConsultasDia] = useState<ConsultaEvent[]>([]);
+  const [allConsultasDiaDate, setAllConsultasDiaDate] = useState<string>("");
+  // Paginação para o modal de todas as consultas do dia
+  const [allModalPage, setAllModalPage] = useState(1);
+  const ALL_MODAL_PER_PAGE = 5;
+  const allModalTotalPages = Math.ceil(allConsultasDia.length / ALL_MODAL_PER_PAGE);
+  const allModalPaginated = allConsultasDia.slice((allModalPage-1)*ALL_MODAL_PER_PAGE, allModalPage*ALL_MODAL_PER_PAGE);
 
   function getMonthMatrix(month: Date) {
     const year = month.getFullYear();
@@ -194,21 +204,8 @@ export default function ConsultasPaciente() {
   const handleCancelar = async () => {
     if (!selectedConsulta) return;
     try {
-      const agendamentoCompleto = await fetchAgendamentoById(selectedConsulta.id);
-      const atualizado = { ...agendamentoCompleto, status: 'cancelado' };
-      const res = await fetch(`http://localhost:8000/api/agendamentos/${selectedConsulta.id}/atualizar/`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(atualizado),
-      });
-      if (res.status === 401 || res.status === 403) {
-        throw new Error('Sessão expirada. Faça login novamente.');
-      }
-      if (!res.ok) throw new Error('Erro ao cancelar agendamento');
-      toast.success('Agendamento cancelado!');
+      await refundAgendamentoStripe(selectedConsulta.id);
+      toast.success('Estorno realizado e agendamento cancelado!');
       setModalOpen(false);
       fetchConsultas();
     } catch (err: any) {
@@ -218,7 +215,7 @@ export default function ConsultasPaciente() {
           window.location.href = '/login';
         }, 1500);
       } else {
-        toast.error('Erro ao cancelar agendamento.');
+        toast.error(err.message || 'Erro ao cancelar/estornar agendamento.');
       }
     }
   };
@@ -253,22 +250,153 @@ export default function ConsultasPaciente() {
                 <div key={key} className={`min-h-[90px] rounded-xl p-1 md:p-2 flex flex-col items-stretch border border-transparent ${isToday ? 'bg-gradient-to-br from-emerald-100 to-indigo-100 border-emerald-300 shadow-lg' : day ? 'bg-gray-50 hover:bg-emerald-50 transition' : 'bg-transparent'}`}>
                   <div className={`text-right text-xs md:text-sm font-bold ${isToday ? 'text-emerald-700' : day ? 'text-gray-700' : 'text-gray-400'}`}>{day ? day.getDate() : ''}</div>
                   <div className="flex flex-col gap-1 mt-1">
-                    {day && eventosPorDia[format(day, 'yyyy-MM-dd')]?.map(ev => (
-                      <button
-                        key={ev.id}
-                        onClick={() => handleSelectEvent(ev)}
-                        className={`truncate text-xs md:text-sm px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white text-left ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}
-                        title={ev.title}
-                      >
-                        {ev.title}
-                      </button>
-                    ))}
+                    {day && (() => {
+                      const eventos = eventosPorDia[format(day, 'yyyy-MM-dd')] || [];
+                      if (view === 'month') {
+                        const maxToShow = 2;
+                        const toShow = eventos.slice(0, maxToShow);
+                        const hiddenCount = eventos.length - maxToShow;
+                        return (
+                          <>
+                            {toShow.map(ev => (
+                              <button
+                                key={ev.id}
+                                onClick={() => handleSelectEvent(ev)}
+                                className={`w-full text-left px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white truncate text-xs md:text-sm ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}
+                                title={ev.title}
+                              >
+                                <span className="truncate block">{ev.title}</span>
+                              </button>
+                            ))}
+                            {hiddenCount > 0 && (
+                              <button
+                                className="w-full text-xs mt-1 px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold border border-emerald-200 hover:bg-emerald-200 transition"
+                                onClick={() => {
+                                  setAllConsultasDia(eventos);
+                                  setAllConsultasDiaDate(format(day, 'dd/MM/yyyy'));
+                                  setAllModalPage(1);
+                                  setShowAllModal(true);
+                                }}
+                              >
+                                +{hiddenCount}
+                              </button>
+                            )}
+                          </>
+                        );
+                      } else if (view === 'week') {
+                        const maxToShow = 3;
+                        const toShow = eventos.slice(0, maxToShow);
+                        const hiddenCount = eventos.length - maxToShow;
+                        return (
+                          <>
+                            {toShow.map(ev => (
+                              <button
+                                key={ev.id}
+                                onClick={() => handleSelectEvent(ev)}
+                                className={`w-full text-left px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white truncate text-xs md:text-sm ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}
+                                title={ev.title}
+                                style={{ minHeight: 32 }}
+                              >
+                                <span className="block truncate">
+                                  <span className="font-bold">{ev.start ? format(ev.start, 'HH:mm') : '--:--'}</span> - {ev.profissional?.nome || ''}
+                                  <span className={`ml-2 text-xs font-semibold ${ev.status === 'confirmado' ? 'text-emerald-900' : ev.status === 'pendente' ? 'text-yellow-700' : ev.status === 'cancelado' ? 'text-red-700' : 'text-indigo-900'}`}>({ev.status})</span>
+                                </span>
+                              </button>
+                            ))}
+                            {hiddenCount > 0 && (
+                              <button
+                                className="w-full text-xs mt-1 px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold border border-emerald-200 hover:bg-emerald-200 transition"
+                                onClick={() => {
+                                  setAllConsultasDia(eventos);
+                                  setAllConsultasDiaDate(format(day, 'dd/MM/yyyy'));
+                                  setAllModalPage(1);
+                                  setShowAllModal(true);
+                                }}
+                              >
+                                +{hiddenCount}
+                              </button>
+                            )}
+                          </>
+                        );
+                      } else if (view === 'day') {
+                        return eventos.map(ev => (
+                          <button
+                            key={ev.id}
+                            onClick={() => handleSelectEvent(ev)}
+                            className={`w-full text-left px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white text-sm md:text-base ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}
+                            title={ev.title}
+                          >
+                            <div className="text-left space-y-1">
+                              <div className="font-bold text-emerald-800">{ev.profissional?.nome || ''}</div>
+                              <div className="text-xs text-gray-700">Horário: {ev.start ? format(ev.start, 'HH:mm') : '--:--'}</div>
+                              <div className="text-xs font-semibold">
+                                Status: <span className={`${ev.status === 'confirmado' ? 'text-emerald-700' : ev.status === 'pendente' ? 'text-yellow-700' : ev.status === 'cancelado' ? 'text-red-700' : 'text-indigo-900'}`}>{ev.status}</span>
+                              </div>
+                              {ev.observacao && <div className="text-xs text-gray-600">Obs: {ev.observacao}</div>}
+                              {ev.link_consulta && ev.status !== 'cancelado' && (
+                                <a href={ev.link_consulta} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-700 underline hover:text-blue-900">Acessar Consulta</a>
+                              )}
+                            </div>
+                          </button>
+                        ));
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
               );
             })
           ))}
         </div>
+      {/* Modal para mostrar todas as consultas do dia */}
+      <Dialog open={showAllModal} onClose={() => setShowAllModal(false)} className="fixed z-50 inset-0 overflow-y-auto">
+        <div className="flex items-center justify-center min-h-screen px-2 sm:px-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+          <Dialog.Panel className="relative bg-white/95 rounded-2xl shadow-2xl max-w-2xl w-full mx-auto p-8 md:p-12 z-10 border border-emerald-200">
+            <Dialog.Title as="h2" className="text-2xl md:text-3xl font-bold mb-6 bg-gradient-to-r from-indigo-600 via-emerald-500 to-cyan-400 bg-clip-text text-transparent text-center">Consultas do dia {allConsultasDiaDate}</Dialog.Title>
+            <div className="space-y-3">
+              {allModalPaginated.map(ev => (
+                <div key={ev.id} className={`w-full px-4 py-3 rounded-lg shadow-sm border-2 border-white text-xs md:text-sm mb-2 ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}>
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <div>
+                      <div className="font-bold text-base md:text-lg">{ev.profissional?.nome || ''}</div>
+                      <div className="text-xs">Horário: {ev.start ? format(ev.start, 'HH:mm') : '--:--'}</div>
+                      <div className="text-xs">Status: <span className={`${ev.status === 'confirmado' ? 'text-emerald-100' : ev.status === 'pendente' ? 'text-yellow-900' : ev.status === 'cancelado' ? 'text-red-100' : 'text-indigo-900'}`}>{ev.status}</span></div>
+                      {ev.observacao && <div className="text-xs">Obs: {ev.observacao}</div>}
+                      {ev.link_consulta && ev.status !== 'cancelado' && (
+                        <a href={ev.link_consulta} target="_blank" rel="noopener noreferrer" className="text-xs underline hover:text-blue-200">Acessar Consulta</a>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => { setShowAllModal(false); handleSelectEvent(ev); }}
+                      className="mt-2 md:mt-0 px-4 py-2 rounded-lg bg-white/80 text-emerald-700 font-bold border border-emerald-200 hover:bg-emerald-100 transition"
+                    >Ver detalhes</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Paginação */}
+            {allModalTotalPages > 1 && (
+              <div className="flex justify-center items-center gap-2 mt-6">
+                <button
+                  className="px-3 py-1 rounded bg-emerald-100 text-emerald-800 font-bold disabled:opacity-50"
+                  onClick={() => setAllModalPage(p => Math.max(1, p-1))}
+                  disabled={allModalPage === 1}
+                >Anterior</button>
+                <span className="font-bold text-emerald-700">Página {allModalPage} de {allModalTotalPages}</span>
+                <button
+                  className="px-3 py-1 rounded bg-emerald-100 text-emerald-800 font-bold disabled:opacity-50"
+                  onClick={() => setAllModalPage(p => Math.min(allModalTotalPages, p+1))}
+                  disabled={allModalPage === allModalTotalPages}
+                >Próxima</button>
+              </div>
+            )}
+            <div className="flex justify-center mt-8">
+              <button onClick={() => setShowAllModal(false)} className="px-8 py-3 rounded-lg border border-gray-300 text-gray-700 font-bold hover:bg-gray-100 transition-all focus:outline-none focus:ring-2 focus:ring-gray-300">Fechar</button>
+            </div>
+          </Dialog.Panel>
+        </div>
+      </Dialog>
         {loading && (
           <div className="flex flex-col items-center justify-center py-24 animate-pulse">
             <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -324,7 +452,7 @@ export default function ConsultasPaciente() {
               </div>
             )}
             <div className="flex flex-col md:flex-row gap-4 mt-10 justify-center">
-              {selectedConsulta?.status === 'pendente' && (
+              {(selectedConsulta?.status === 'pendente' || selectedConsulta?.status === 'paga') && (
                 <>
                   <button onClick={handleCancelar} className="bg-gradient-to-r from-yellow-400 to-red-400 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-yellow-500 hover:to-red-500 transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400">Cancelar</button>
                 </>

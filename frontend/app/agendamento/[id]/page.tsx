@@ -85,7 +85,7 @@ export default function Agendamento() {
         const data = await response.json();
         setUsuario(data);
       } catch (error) {
-        toast.error('Você precisa estar logado para acessar esta página.');
+    toast.warning('Você precisa estar logado para agendar uma consulta.');
         router.push('/login');
       }
     };
@@ -197,6 +197,9 @@ export default function Agendamento() {
         autoClose: 3000,
         theme: 'colored',
       });
+      // Adiciona o horário escolhido à lista de ocupados localmente
+      const novoHorario = moment(dataHora).format('HH:mm');
+      setHorariosOcupados(prev => prev.includes(novoHorario) ? prev : [...prev, novoHorario]);
       // Não redireciona imediatamente, deixa o usuário ver o link
       // setTimeout(() => router.push('/'), 2000);
     } catch (error) {
@@ -209,6 +212,7 @@ export default function Agendamento() {
   };
 
   // Função para iniciar o pagamento Stripe
+  // Corrigido: sempre cria o agendamento antes de chamar o pagamento
   const handlePagamento = async () => {
     if (!usuario || !profissional) {
       toast.error('Dados insuficientes para pagamento.', {
@@ -217,7 +221,6 @@ export default function Agendamento() {
       });
       return;
     }
-    // Revalida o horário antes de enviar
     setLoadingHorarios(true);
     const tipo = profissional.crm ? 'psiquiatra' : 'psicologo';
     const dataStr = moment(dataSelecionada).format('YYYY-MM-DD');
@@ -239,9 +242,39 @@ export default function Agendamento() {
       setDataHora('');
       return;
     }
+    // 1. Cria o agendamento pendente primeiro
+    let agendamentoId = null;
+    try {
+      const agendamento = {
+        usuario: usuario.id,
+        ...(profissional.crm ? { psiquiatra: profissional.id } : { psicologo: profissional.id }),
+        data_hora: dataHora,
+        status: 'pendente',
+        observacoes,
+        link_consulta: '', // O backend irá gerar
+      };
+      const response = await fetch(`${getBackendUrl()}/api/agendamentos/criar/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(agendamento),
+      });
+  if (!response.ok) throw new Error('Erro ao criar agendamento antes do pagamento.');
+  const agendamentoCriado = await response.json();
+  agendamentoId = agendamentoCriado.id;
+  // Adiciona o horário escolhido à lista de ocupados localmente
+  const novoHorario = moment(dataHora).format('HH:mm');
+  setHorariosOcupados(prev => prev.includes(novoHorario) ? prev : [...prev, novoHorario]);
+    } catch (err) {
+      toast.error('Erro ao criar agendamento antes do pagamento.', {
+        position: 'top-center',
+        autoClose: 4000,
+      });
+      return;
+    }
+    // 2. Só então chama o pagamento Stripe
     const valorConsulta = profissional.valor_consulta ? Number(profissional.valor_consulta) : 200;
     try {
-      // Cria sessão Stripe Checkout
       const res = await fetch(`${getBackendUrl()}/api/stripe/pagamento/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -254,22 +287,6 @@ export default function Agendamento() {
       });
       const data = await res.json();
       if (data.checkout_url) {
-        // Salva o agendamento no backend antes de redirecionar para o pagamento
-        const agendamento = {
-          usuario: usuario.id,
-          ...(profissional.crm ? { psiquiatra: profissional.id } : { psicologo: profissional.id }),
-          data_hora: dataHora,
-          status: 'pendente',
-          observacoes,
-          link_consulta: linkConsulta,
-        };
-        await fetch(`${getBackendUrl()}/api/agendamentos/criar/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(agendamento),
-        });
-        // Redireciona para o Stripe Checkout
         window.location.href = data.checkout_url;
       } else {
         toast.error(data.error || 'Erro ao criar pagamento Stripe.', {

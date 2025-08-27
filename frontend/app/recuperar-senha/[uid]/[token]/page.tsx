@@ -1,85 +1,91 @@
-'use client';
-import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+"use client";
+import { useState, use } from "react";
+import { useRouter } from "next/navigation";
 
-export default function ResetarSenha() {
-const { uid, token } = useParams() as { uid: string; token: string };
+interface Params {
+  params: Promise<{ uid: string; token: string }>;
+}
 
+export default function RedefinirSenhaPage({ params }: Params) {
+  const router = useRouter();
+  const { uid, token } = use(params);
 
-    const router = useRouter();
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [resetSuccess, setResetSuccess] = useState(false);
 
-    const [novaSenha, setNovaSenha] = useState('');
-    const [confirmarSenha, setConfirmarSenha] = useState('');
-    const [mensagem, setMensagem] = useState('');
+  const handleRedefinir = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setSuccess("");
+    if (newPassword !== confirmPassword) {
+      setError("As senhas não coincidem.");
+      setLoading(false);
+      return;
+    }
+    try {
+      const res = await fetch(`http://localhost:8000/api/resetar-senha/${uid}/${token}/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResetSuccess(true);
+        setSuccess("Senha redefinida com sucesso! Você será redirecionado para o login em instantes.");
+        setTimeout(() => router.push("/login"), 2000);
+      } else {
+        setError(data.detail || "Erro ao redefinir senha.");
+      }
+    } catch (err) {
+      setError("Erro de conexão com o servidor.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleReset = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setMensagem('');
-
-        if (!uid || !token) {
-            setMensagem('Link inválido ou incompleto.');
-            return;
-        }
-
-        if (novaSenha !== confirmarSenha) {
-            setMensagem('As senhas não coincidem.');
-            return;
-        }
-
-        try {
-            const response = await fetch('http://localhost:8000/redefinir-senha/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ uid, token, nova_senha: novaSenha }),
-            });
-
-            const data = await response.json();
-            if (response.ok) {
-                alert('Senha redefinida com sucesso!');
-                router.push('/login');
-            } else {
-                setMensagem(data.detail || 'Erro ao redefinir senha.');
-            }
-        } catch (error) {
-            console.error('Erro ao redefinir senha:', error);
-            setMensagem('Erro de conexão com o servidor.');
-        }
-    };
-
-    return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100">
-            <form onSubmit={handleReset} className="bg-white p-6 rounded shadow-md w-full max-w-sm">
-                <h2 className="text-2xl font-bold mb-4 text-center">Redefinir Senha</h2>
-
-                {mensagem && (
-                    <p className="text-sm text-red-600 text-center mb-4">{mensagem}</p>
-                )}
-
-                <input
-                    type="password"
-                    placeholder="Nova senha"
-                    value={novaSenha}
-                    onChange={e => setNovaSenha(e.target.value)}
-                    className="w-full mb-4 px-3 py-2 border rounded"
-                    required
-                />
-
-                <input
-                    type="password"
-                    placeholder="Confirmar senha"
-                    value={confirmarSenha}
-                    onChange={e => setConfirmarSenha(e.target.value)}
-                    className="w-full mb-4 px-3 py-2 border rounded"
-                    required
-                />
-
-                <button
-                    type="submit"
-                    className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 transition duration-300"
-                >
-                    Redefinir Senha
-                </button>
-            </form>
-        </div>
-    );
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-white to-green-100 px-4">
+      <div className="w-full max-w-md bg-white/90 shadow-xl rounded-2xl p-8 border border-indigo-100">
+        <h1 className="text-2xl font-bold text-center text-indigo-700 mb-4">Redefinir Senha</h1>
+        {success && <div className="mb-4 p-2 bg-green-100 text-green-700 rounded text-center">{success}</div>}
+        {error && <div className="mb-4 p-2 bg-red-100 text-red-700 rounded text-center">{error}</div>}
+        {!resetSuccess && (
+          <form onSubmit={handleRedefinir} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Nova Senha</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                required
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Confirmar Nova Senha</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                required
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-all duration-300"
+              disabled={loading}
+            >
+              {loading ? "Redefinindo..." : "Redefinir Senha"}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
 }

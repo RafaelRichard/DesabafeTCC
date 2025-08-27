@@ -11,7 +11,7 @@ export default function Home() {
             {/* Coluna de texto + especialidades */}
             <div>
               <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 mb-6 leading-tight">
-                Apoio Emocional de Qualidade, Onde e Quando Você Precisar
+                Apoio Emocional de Qualidade, Onde e Quando Você Precisar 
               </h1>
               <p className="text-lg text-gray-600 mb-10 font-serif max-w-xl">
                 Conectamos você com profissionais experientes em saúde mental, prontos para oferecer
@@ -38,7 +38,7 @@ export default function Home() {
                 ))}
               </div>
 
-              <Button className="mt-2 animate-pulse hover:animate-none transition duration-300">
+              <Button className="mt-2 animate-pulse hover:animate-none transition duration-300" >
                 Comece Agora
               </Button>
             </div>

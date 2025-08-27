@@ -43,9 +43,10 @@ from app_projeto.views import (
     detalhar_usuario,
     listar_psicologos,
     status_connect_account,
-
+    RecuperarSenhaAPIView, 
+    RedefinirSenhaAPIView,
     listar_agendamentos_profissional, listar_agendamentos_paciente, deletar_agendamento,
-    detalhar_agendamento, horarios_ocupados, upload_foto_usuario, listar_prontuarios, prontuario_detalhe_editar
+    detalhar_agendamento, horarios_ocupados, upload_foto_usuario, listar_prontuarios, prontuario_detalhe_editar, estornar_pagamento_stripe
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -53,6 +54,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('api/stripe/pagamento/', criar_pagamento_stripe, name='criar_pagamento_stripe'),
     path('api/stripe/webhook/', stripe_webhook, name='stripe_webhook'),
+    path('api/stripe/estorno/<int:agendamento_id>/', estornar_pagamento_stripe, name='estornar_pagamento_stripe'),
     path('admin/', admin.site.urls),
     path('cadastrar_usuario/', cadastrar_usuario, name='cadastrar_usuario'),
     path('login_usuario/', login_usuario, name='login_usuario'),
@@ -103,7 +105,9 @@ urlpatterns = [
     # HORÁRIOS OCUPADOS
     path('api/horarios_ocupados/', horarios_ocupados, name='horarios_ocupados'),
 
-    # (Removido endpoint de criar_sala_daily, agora o link é gerado direto no agendamento)
+    #RECUPERAR SENHA
+    path('api/recuperar-senha/', RecuperarSenhaAPIView.as_view(), name='recuperar_senha'),
+    path('api/resetar-senha/<str:uidb64>/<str:token>/', RedefinirSenhaAPIView.as_view(), name='resetar_senha'),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

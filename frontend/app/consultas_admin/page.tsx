@@ -202,6 +202,16 @@ export default function ConsultasAdmin() {
   // Modal de detalhes
   const [modalConsulta, setModalConsulta] = useState<null | any>(null);
 
+  // --- PADRÃO CONSULTAS_PSIQUIATRAS ---
+  // Estados para modal de todas as consultas do dia
+  const [showAllModal, setShowAllModal] = useState(false);
+  const [allConsultasDia, setAllConsultasDia] = useState<any[]>([]);
+  const [allConsultasDiaDate, setAllConsultasDiaDate] = useState<string>("");
+  const [allModalPage, setAllModalPage] = useState(1);
+  const ALL_MODAL_PER_PAGE = 5;
+  const allModalTotalPages = Math.ceil(allConsultasDia.length / ALL_MODAL_PER_PAGE);
+  const allModalPaginated = allConsultasDia.slice((allModalPage-1)*ALL_MODAL_PER_PAGE, allModalPage*ALL_MODAL_PER_PAGE);
+
   function renderCalendario(consultas: Consulta[], titulo: string) {
     const { eventos, eventosPorDia } = getEventosPorDia(consultas);
     let dateMatrix: (Date | null)[][] = [];
@@ -247,17 +257,39 @@ export default function ConsultasAdmin() {
                 <div key={key} className={`min-h-[90px] rounded-xl p-1 md:p-2 flex flex-col items-stretch border border-transparent ${isToday ? 'bg-gradient-to-br from-emerald-100 to-indigo-100 border-emerald-300 shadow-lg' : day ? 'bg-gray-50 hover:bg-emerald-50 transition' : 'bg-transparent'}`}>
                   <div className={`text-right text-xs md:text-sm font-bold ${isToday ? 'text-emerald-700' : day ? 'text-gray-700' : 'text-gray-400'}`}>{day ? day.getDate() : ''}</div>
                   <div className="flex flex-col gap-1 mt-1">
-                    {day && eventosPorDia[format(day, 'yyyy-MM-dd')]?.map(ev => (
-                      <div
-                        key={ev.id}
-                        className={`truncate text-xs md:text-sm px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white text-left ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}
-                        title={ev.title}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => setModalConsulta(ev)}
-                      >
-                        {ev.title}
-                      </div>
-                    ))}
+                    {day && (() => {
+                      const eventos = eventosPorDia[format(day, 'yyyy-MM-dd')] || [];
+                      let maxToShow = view === 'month' ? 3 : view === 'week' ? 3 : eventos.length;
+                      const toShow = eventos.slice(0, maxToShow);
+                      const hiddenCount = eventos.length - maxToShow;
+                      return (
+                        <>
+                          {toShow.map(ev => (
+                            <button
+                              key={ev.id}
+                              onClick={() => setModalConsulta(ev)}
+                              className={`w-full text-left px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white truncate text-xs md:text-sm ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}
+                              title={ev.title}
+                            >
+                              <span className="truncate block">{ev.title}</span>
+                            </button>
+                          ))}
+                          {hiddenCount > 0 && (
+                            <button
+                              className="w-full text-xs mt-1 px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold border border-emerald-200 hover:bg-emerald-200 transition"
+                              onClick={() => {
+                                setAllConsultasDia(eventos);
+                                setAllConsultasDiaDate(format(day, 'dd/MM/yyyy'));
+                                setAllModalPage(1);
+                                setShowAllModal(true);
+                              }}
+                            >
+                              +{hiddenCount}
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               );
@@ -302,6 +334,53 @@ export default function ConsultasAdmin() {
         )}
       </div>
 
+      {/* Modal de todas as consultas do dia */}
+      {showAllModal && (
+        <div className="fixed z-50 inset-0 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-2 sm:px-4">
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+            <div className="relative bg-white/95 rounded-2xl shadow-2xl max-w-2xl w-full mx-auto p-8 md:p-12 z-10 border border-emerald-200">
+              <h2 className="text-2xl md:text-3xl font-bold mb-6 bg-gradient-to-r from-indigo-600 via-emerald-500 to-cyan-400 bg-clip-text text-transparent text-center">Consultas do dia {allConsultasDiaDate}</h2>
+              <div className="space-y-3">
+                {allModalPaginated.map(ev => (
+                  <div key={ev.id} className={`w-full px-4 py-3 rounded-lg shadow-sm border-2 border-white text-xs md:text-sm mb-2 ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}>
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                      <div>
+                        <div className="font-bold text-base md:text-lg">{ev.paciente_nome || '-'}</div>
+                        <div className="text-xs">Horário: {ev.start ? format(ev.start, 'HH:mm') : '--:--'}</div>
+                        <div className="text-xs">Status: <span className={`${ev.status === 'confirmado' ? 'text-emerald-100' : ev.status === 'pendente' ? 'text-yellow-900' : ev.status === 'cancelado' ? 'text-red-100' : 'text-indigo-900'}`}>{ev.status}</span></div>
+                      </div>
+                      <button
+                        onClick={() => { setShowAllModal(false); setModalConsulta(ev); }}
+                        className="mt-2 md:mt-0 px-4 py-2 rounded-lg bg-white/80 text-emerald-700 font-bold border border-emerald-200 hover:bg-emerald-100 transition"
+                      >Ver detalhes</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Paginação */}
+              {allModalTotalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-6">
+                  <button
+                    className="px-3 py-1 rounded bg-emerald-100 text-emerald-800 font-bold disabled:opacity-50"
+                    onClick={() => setAllModalPage(p => Math.max(1, p-1))}
+                    disabled={allModalPage === 1}
+                  >Anterior</button>
+                  <span className="font-bold text-emerald-700">Página {allModalPage} de {allModalTotalPages}</span>
+                  <button
+                    className="px-3 py-1 rounded bg-emerald-100 text-emerald-800 font-bold disabled:opacity-50"
+                    onClick={() => setAllModalPage(p => Math.min(allModalTotalPages, p+1))}
+                    disabled={allModalPage === allModalTotalPages}
+                  >Próxima</button>
+                </div>
+              )}
+              <div className="flex justify-center mt-8">
+                <button onClick={() => setShowAllModal(false)} className="px-8 py-3 rounded-lg border border-gray-300 text-gray-700 font-bold hover:bg-gray-100 transition-all focus:outline-none focus:ring-2 focus:ring-gray-300">Fechar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Modal de detalhes da consulta */}
       {modalConsulta && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -309,7 +388,6 @@ export default function ConsultasAdmin() {
             <button onClick={() => setModalConsulta(null)} className="absolute top-3 right-3 text-gray-400 hover:text-emerald-600 text-2xl font-bold">&times;</button>
             <h3 className="text-2xl font-bold mb-4 text-emerald-700">Detalhes da Consulta</h3>
             <div className="space-y-2 text-gray-700">
-              {/* Paciente: tenta mostrar o mesmo fallback do calendário */}
               <div>
                 <span className="font-semibold">Paciente:</span> {
                   modalConsulta.paciente_nome && modalConsulta.paciente_nome !== 'undefined'
@@ -327,10 +405,6 @@ export default function ConsultasAdmin() {
               <div><span className="font-semibold">Data/Hora:</span> {modalConsulta.start ? format(modalConsulta.start, "dd/MM/yyyy 'às' HH:mm") : '-'}</div>
               <div><span className="font-semibold">ID da Consulta:</span> {modalConsulta.id}</div>
             </div>
-            {/* <details className="mt-6 text-xs text-gray-500 select-text">
-              <summary className="cursor-pointer font-semibold">Ver dados brutos da consulta (debug)</summary>
-              <pre className="whitespace-pre-wrap break-all bg-gray-50 rounded-lg p-2 mt-2 border border-gray-200 max-h-60 overflow-auto">{JSON.stringify(modalConsulta, null, 2)}</pre>
-            </details> */}
           </div>
         </div>
       )}
