@@ -112,4 +112,4 @@ class ProntuarioSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Prontuario
-        fields = ['id', 'agendamento', 'paciente', 'texto', 'data_criacao', 'data_atualizacao']
+        fields = ['id', 'agendamento', 'paciente', 'texto', 'mensagem_paciente', 'data_criacao', 'data_atualizacao']

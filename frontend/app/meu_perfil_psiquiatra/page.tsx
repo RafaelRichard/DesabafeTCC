@@ -260,6 +260,12 @@ export default function PerfilPsiquiatra() {
     }
   };
 
+  const formatCurrency = (v?: any) => {
+    const n = Number(v);
+    if (Number.isNaN(n) || v === null || v === undefined || v === '') return '-';
+    return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
   if (erro) return <div className="p-8 text-center text-red-600">{erro}</div>;
   if (!psiquiatra) return <div className="p-8 text-center">Usuário não encontrado.</div>;
@@ -277,7 +283,7 @@ export default function PerfilPsiquiatra() {
           className="border border-indigo-300 rounded-lg px-3 py-2 w-full"
         />
       ) : (
-        <span className="text-gray-900 min-h-[40px] flex items-center">{form[name] || '-'}</span>
+        <span className="text-gray-900 min-h-[40px] flex items-center">{name === 'valor_consulta' ? (form[name] ? formatCurrency(form[name]) : '-') : (form[name] || '-')}</span>
       )}
     </div>
   );

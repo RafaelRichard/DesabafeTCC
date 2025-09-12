@@ -19,6 +19,8 @@ interface Psiquiatra {
 export default function Psiquiatria() {
   const [psiquiatras, setPsiquiatras] = useState<Psiquiatra[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoadingLogin, setIsLoadingLogin] = useState(true);
   const router = useRouter();
@@ -104,8 +106,11 @@ export default function Psiquiatria() {
             ) : psiquiatras.length === 0 ? (
               <div className="text-center text-gray-500">Nenhum psiquiatra encontrado.</div>
             ) : (
-              <div className="grid sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-8">
-                {psiquiatras.map((psiquiatra) => (
+              <>
+                <div className="grid sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-8">
+                  {psiquiatras
+                    .slice((page - 1) * pageSize, page * pageSize)
+                    .map((psiquiatra) => (
                   <div
                     key={psiquiatra.id}
                     className="bg-gray-50 rounded-xl shadow-md hover:shadow-lg transition duration-300 p-6 flex flex-col items-center text-center h-full justify-between"
@@ -120,7 +125,7 @@ export default function Psiquiatria() {
                     <p className="text-gray-600">{psiquiatra.especialidade || 'Especialista em saúde mental'}</p>
                     <p className="text-gray-500 text-md mt-1">CRM: {psiquiatra.crm || 'Não informado'}</p>
                     <p className="text-gray-500 text-sm mt-1">Valor da consulta:</p>
-                    <p className="text-indigo-700 font-bold text-lg mt-2">{psiquiatra.valor_consulta ? `R$ ${Number(psiquiatra.valor_consulta).toFixed(2)}` : 'Valor não informado'}</p>
+                      <p className="text-indigo-700 font-bold text-lg mt-2">{psiquiatra.valor_consulta ? Number(psiquiatra.valor_consulta).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor não informado'}</p>
                     <div className="flex-grow" />
                     <button
                       onClick={() => handleAgendarConsulta(psiquiatra.id)}
@@ -131,7 +136,37 @@ export default function Psiquiatria() {
                     </button>
                   </div>
                 ))}
-              </div>
+                </div>
+
+                {/* Pagination controls */}
+                <div className="mt-6 flex items-center justify-center gap-3">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    className="px-3 py-1 bg-white border rounded-md hover:bg-gray-100"
+                    disabled={page === 1}
+                  >
+                    Anterior
+                  </button>
+
+                  {Array.from({ length: Math.max(1, Math.ceil(psiquiatras.length / pageSize)) }, (_, i) => i + 1).map((pnum) => (
+                    <button
+                      key={pnum}
+                      onClick={() => setPage(pnum)}
+                      className={`px-3 py-1 rounded-md ${pnum === page ? 'bg-indigo-600 text-white' : 'bg-white border hover:bg-gray-100'}`}
+                    >
+                      {pnum}
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={() => setPage(p => Math.min(Math.ceil(psiquiatras.length / pageSize), p + 1))}
+                    className="px-3 py-1 bg-white border rounded-md hover:bg-gray-100"
+                    disabled={page >= Math.ceil(psiquiatras.length / pageSize)}
+                  >
+                    Próximo
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>

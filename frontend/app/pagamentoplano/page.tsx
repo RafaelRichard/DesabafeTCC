@@ -94,7 +94,7 @@ export default function PagamentoPlano() {
             <div className="mb-6">
                 <div className="text-lg font-semibold mb-2">Plano Selecionado:</div>
                 <div className="text-xl text-indigo-700 font-bold">{planoNome}</div>
-                <div className="text-lg mt-2">Valor: <span className="font-bold">R$ {preco.toFixed(2)}</span></div>
+                <div className="text-lg mt-2">Valor: <span className="font-bold">{Number(preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
             </div>
 
             <button
@@ -187,7 +187,7 @@ export default function PagamentoPlano() {
                             >
                                 {[...Array(5)].map((_, i) => (
                                     <option key={i + 1} value={i + 1}>
-                                        {i + 1}x de R$ {(preco / (i + 1)).toFixed(2)} sem juros
+                                        {i + 1}x de {Number(preco / (i + 1)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} sem juros
                                     </option>
                                 ))}
                             </select>

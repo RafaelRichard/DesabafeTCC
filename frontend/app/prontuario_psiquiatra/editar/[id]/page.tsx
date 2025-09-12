@@ -14,6 +14,7 @@ export default function EditarProntuario() {
   const [mensagem, setMensagem] = useState("");
   const [prontuario, setProntuario] = useState<any>(null);
   const [texto, setTexto] = useState("");
+  const [mensagemPaciente, setMensagemPaciente] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [mensagemSalvar, setMensagemSalvar] = useState("");
 
@@ -30,21 +31,22 @@ export default function EditarProntuario() {
         try {
           data = JSON.parse(text);
         } catch (e) {
-          setMensagem("Resposta do backend não é JSON: " + text);
+          toast.error("Resposta do backend não é JSON: " + text);
           setLoading(false);
           return;
         }
         if (!resp.ok) {
-          setMensagem(data?.error || "Erro ao buscar prontuário");
+          toast.error(data?.error || "Erro ao buscar prontuário");
           setLoading(false);
           return;
         }
         setProntuario(data);
         setTexto(data.texto || "");
+        setMensagemPaciente(data.mensagem_paciente || "");
         setLoading(false);
       })
       .catch((err) => {
-        setMensagem("Erro ao buscar prontuário: " + err.message);
+        toast.error("Erro ao buscar prontuário: " + err.message);
         setLoading(false);
       });
   }, [id]);
@@ -57,22 +59,32 @@ export default function EditarProntuario() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ texto }),
+        body: JSON.stringify({ texto, mensagem_paciente: mensagemPaciente }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data?.error || "Erro ao salvar prontuário");
-      setMensagemSalvar("Prontuário salvo com sucesso!");
+      toast.success("Prontuário salvo com sucesso!", {
+        onClose: () => router.push('/prontuario_psiquiatra'),
+        autoClose: 2000
+      });
     } catch (err: any) {
-      setMensagemSalvar("Erro ao salvar prontuário: " + (err.message || err));
+      toast.error("Erro ao salvar prontuário: " + (err.message || err), { autoClose: 4000 });
     } finally {
       setSalvando(false);
     }
   };
 
-  if (loading) return <div className="text-center text-blue-700 py-16 text-lg">Carregando prontuário...</div>;
-  if (mensagem) return <div className="text-center text-red-500 py-16 text-lg">{mensagem}</div>;
+  if (loading) {
+    toast.info("Carregando prontuário...", { autoClose: 1500 });
+    return <div className="text-center text-blue-700 py-16 text-lg">Carregando prontuário...</div>;
+  }
+  if (mensagem) {
+    toast.error(mensagem, { autoClose: 4000 });
+    return <div className="text-center text-red-500 py-16 text-lg">{mensagem}</div>;
+  }
   if (!prontuario) return null;
 
+  const isCancelada = prontuario?.agendamento?.status === 'cancelado';
   return (
     <>
       <ToastContainer />
@@ -82,18 +94,25 @@ export default function EditarProntuario() {
             ✏️ Editar Prontuário
           </h1>
 
-          {mensagemSalvar && (
-            <div className="bg-green-100 border border-green-300 text-green-700 px-4 py-3 rounded mb-6 text-sm">
-              {mensagemSalvar}
-            </div>
-          )}
-          {mensagem && (
-            <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded mb-6 text-sm">
-              {mensagem}
+          <div className="flex justify-center mb-6">
+            <a
+              href="https://prescricaoeletronica.cfm.org.br/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition shadow"
+              title="Abrir Prescrição Eletrônica em nova aba"
+            >
+              Abrir Prescrição / Atestado (Prescrição Eletrônica)
+            </a>
+          </div>
+
+          {isCancelada && (
+            <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded mb-6 text-center font-semibold">
+              Não é possível editar o prontuário de uma consulta cancelada.
             </div>
           )}
 
-          <form onSubmit={e => { e.preventDefault(); handleSalvar(); }} className="space-y-8">
+          <form onSubmit={e => { e.preventDefault(); if (!isCancelada) handleSalvar(); }} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Paciente</label>
@@ -150,25 +169,25 @@ export default function EditarProntuario() {
                 />
               </div>
             </div>
-
-
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Texto do Prontuário</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Texto do Prontuário (Privado, só o psiquiatra vê)</label>
               <textarea
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm min-h-[120px] focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                 value={texto}
                 onChange={e => setTexto(e.target.value)}
-                disabled={salvando}
+                disabled={salvando || isCancelada}
               />
-              <div className="mt-4">
-                <a
-                  href="https://prescricaoeletronica.cfm.org.br/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block text-blue-700 font-semibold underline hover:text-blue-900 transition">
-                  Emitir Receita ou Atestado (Prescrição Eletrônica CFM)
-                </a>
-              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Mensagem para o Paciente</label>
+              <textarea
+                className="w-full px-4 py-3 border border-green-300 rounded-xl shadow-sm min-h-[80px] focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+                value={mensagemPaciente}
+                onChange={e => setMensagemPaciente(e.target.value)}
+                disabled={salvando || isCancelada}
+                placeholder="Escreva aqui uma mensagem que o paciente poderá ler."
+              />
             </div>
 
             <div className="flex flex-col md:flex-row justify-end gap-4 pt-6">
@@ -183,9 +202,9 @@ export default function EditarProntuario() {
               <button
                 type="submit"
                 className="w-full md:w-auto px-6 py-3 rounded-xl bg-teal-600 text-white hover:bg-teal-700 transition shadow-md"
-                disabled={salvando}
+                disabled={salvando || isCancelada}
               >
-             s   {salvando ? "Salvando..." : "Salvar Alterações"}
+                {salvando ? "Salvando..." : "Salvar Alterações"}
               </button>
             </div>
           </form>

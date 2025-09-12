@@ -448,13 +448,13 @@ export default function Agendamento() {
           >
             Agendar e Pagar Consulta
           </button>
-          <button
+          {/* <button
             type="submit"
             className="bg-indigo-600 text-white px-10 py-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-600 transition duration-300"
             disabled={!dataHora || loadingHorarios || horariosOcupados.includes(moment(dataHora).format('HH:mm'))}
           >
             Confirmar Agendamento (sem pagamento)
-          </button>
+          </button> */}
         </div>
       </form>
       <ToastContainer position="top-center" autoClose={3000} />

@@ -253,6 +253,12 @@ export default function PerfilPsicologo() {
     }
   };
 
+  const formatCurrency = (v?: any) => {
+    const n = Number(v);
+    if (Number.isNaN(n) || v === null || v === undefined || v === '') return '-';
+    return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
 
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
   if (erro) return <div className="p-8 text-center text-red-600">{erro}</div>;
@@ -272,7 +278,7 @@ export default function PerfilPsicologo() {
           className="border border-indigo-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-indigo-400 placeholder-gray-400 transition"
         />
       ) : (
-        <span className="text-gray-900 min-h-[40px] flex items-center">{form[name] || '-'}</span>
+        <span className="text-gray-900 min-h-[40px] flex items-center">{name === 'valor_consulta' ? (form[name] ? formatCurrency(form[name]) : '-') : (form[name] || '-')}</span>
       )}
     </div>
   );

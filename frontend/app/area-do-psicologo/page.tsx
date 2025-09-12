@@ -87,7 +87,7 @@ export default function AreaPsicologo() {
   return (
     <div className="pt-16 bg-gray-50 min-h-screen flex flex-col lg:flex-row">
       {/* Sidebar */}
-      <div className="flex flex-col w-full lg:w-72 bg-indigo-800 text-white h-full p-6 lg:h-auto shadow-lg items-center">
+      <div className="flex flex-col w-full lg:w-72 bg-indigo-800 text-white min-h-[180px] lg:min-h-screen p-4 sm:p-6 shadow-lg items-center lg:items-start">
         {foto ? (
           <img
             src={`http://localhost:8000${foto}`}
@@ -101,8 +101,8 @@ export default function AreaPsicologo() {
             className="w-24 h-24 rounded-full object-cover border-4 border-white mb-4 shadow"
           />
         )}
-        <h2 className="text-2xl font-semibold mb-8 text-center lg:text-left">Área do Psicólogo</h2>
-        <nav className="flex flex-col space-y-4">
+  <h2 className="text-2xl font-semibold mb-8 text-center lg:text-left">Área do Psicólogo</h2>
+  <nav className="flex flex-col space-y-2 sm:space-y-4 w-full">
           <Link href="/meu_perfil_psicologo" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
             <FiUser size={20} />
             <span>Meu Perfil</span>
@@ -116,7 +116,7 @@ export default function AreaPsicologo() {
             <span>Configurações</span>
           </Link>
         </nav>
-        <div className="mt-auto">
+  <div className="mt-6 lg:mt-auto w-full">
           <button
             onClick={handleLogout}
             className="w-full bg-red-600 p-3 rounded-lg hover:bg-red-700 transition duration-300 mt-6"
@@ -126,38 +126,36 @@ export default function AreaPsicologo() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 bg-gradient-to-br from-indigo-50 via-emerald-50 to-white p-6 lg:p-12 min-h-screen">
+  {/* Main Content */}
+  <div className="flex-1 bg-gradient-to-br from-indigo-50 via-emerald-50 to-white p-4 sm:p-6 lg:p-12 min-h-screen">
         <h1 className="text-4xl font-extrabold text-center text-indigo-600 mb-8 tracking-tight drop-shadow-lg">Área do Psicólogo</h1>
         {isLoggedIn && (
-          <div className="bg-white rounded-3xl shadow-2xl p-10 max-w-7xl mx-auto border border-emerald-100">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10 justify-items-center">
+          <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-10 max-w-7xl mx-auto border border-emerald-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-8 mb-8 sm:mb-10 justify-items-center">
               {/* Total Consultas - Roxo */}
-              <div className="w-full bg-indigo-700 rounded-2xl p-8 shadow text-white text-center border border-indigo-700">
+              <div className="w-full bg-indigo-700 rounded-2xl p-4 sm:p-8 shadow text-white text-center border border-indigo-700">
                 <div className="text-2xl font-bold mb-1">Total Consultas</div>
                 <div className="text-4xl font-extrabold tracking-widest">{consultasData.length}</div>
               </div>
               {/* Receita Total - Verde */}
-              <div className="w-full bg-emerald-700 rounded-2xl p-8 shadow text-white text-center border border-emerald-700">
+              <div className="w-full bg-emerald-700 rounded-2xl p-4 sm:p-8 shadow text-white text-center border border-emerald-700">
                 <div className="text-2xl font-bold mb-1">Receita Total</div>
                 <div className="text-4xl font-extrabold tracking-widest">
-                  R$ {
-                    (
-                      consultasData.reduce((acc, c) => acc + (c.valor_recebido_profissional || 0), 0)
-                      - consultasData.filter(c => c.status === 'cancelado').reduce((acc, c) => acc + (c.valor_recebido_profissional || 0), 0)
-                    ).toFixed(2)
-                  }
+                  {Number(
+                    consultasData.reduce((acc, c) => acc + (c.valor_recebido_profissional || 0), 0)
+                    - consultasData.filter(c => c.status === 'cancelado').reduce((acc, c) => acc + (c.valor_recebido_profissional || 0), 0)
+                  ).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </div>
               </div>
               {/* Cancelado - Vermelho */}
-              <div className="w-full bg-red-700 rounded-2xl p-8 shadow text-white text-center border border-red-700">
+              <div className="w-full bg-red-700 rounded-2xl p-4 sm:p-8 shadow text-white text-center border border-red-700">
                 <div className="text-2xl font-bold mb-1">Cancelado</div>
                 <div className="text-4xl font-extrabold tracking-widest">{consultasData.filter(c => c.status === 'cancelado').length}</div>
               </div>
             </div>
-            <div className="w-full max-w-5xl mx-auto bg-white/80 rounded-2xl shadow-xl border border-emerald-100 p-8 flex flex-col items-center">
+            <div className="w-full max-w-5xl mx-auto bg-white/80 rounded-2xl shadow-xl border border-emerald-100 p-4 sm:p-8 flex flex-col items-center">
               <h3 className="text-2xl font-bold text-emerald-700 mb-6 text-center tracking-tight drop-shadow-lg uppercase">Consultas por Status</h3>
-              <div className="w-full h-[420px] flex items-center justify-center">
+              <div className="w-full h-[320px] sm:h-[420px] flex items-center justify-center">
                 <Bar
                   data={{
                     labels: ['Confirmada', 'Paga', 'Cancelada'],
@@ -235,7 +233,7 @@ export default function AreaPsicologo() {
                         callbacks: {
                           label: function (context) {
                             if (context.dataset.label === 'Valor (R$)') {
-                              return `${context.dataset.label}: R$ ${Number(context.parsed.y).toFixed(2).replace('.', ',')}`;
+                              return `${context.dataset.label}: ${Number(context.parsed.y).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
                             }
                             return `${context.dataset.label}: ${context.parsed.y}`;
                           }

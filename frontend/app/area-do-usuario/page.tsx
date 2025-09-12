@@ -63,9 +63,9 @@ export default function AreaDoUsuario() {
     }
 
     return (
-        <div className="min-h-screen flex bg-gray-50">
+        <div className="min-h-screen flex flex-col lg:flex-row bg-gray-50">
             {/* Sidebar */}
-            <div className="w-full lg:w-80 bg-indigo-800 text-white p-6 shadow-xl flex flex-col items-center">
+            <div className="flex flex-col w-full lg:w-80 bg-indigo-800 text-white min-h-[180px] lg:min-h-screen p-4 sm:p-6 shadow-xl items-center lg:items-start">
                 {foto ? (
                     <img
                         src={`http://localhost:8000${foto}`}
@@ -80,7 +80,7 @@ export default function AreaDoUsuario() {
                     />
                 )}
                 <h2 className="text-2xl font-semibold mb-8 text-center lg:text-left">Área do Usuário</h2>
-                <nav className="flex flex-col space-y-4 w-full">
+                <nav className="flex flex-col space-y-2 sm:space-y-4 w-full">
                     <Link href="/perfil" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
                         <FiUser size={20} />
                         <span>Meu Perfil</span>
@@ -89,12 +89,12 @@ export default function AreaDoUsuario() {
                         <FiClipboard size={20} />
                         <span>Minhas Consultas</span>
                     </Link>
-                    <Link href="/configuracoes" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
+                    <Link href="/prontuario_paciente" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
                         <FiSettings size={20} />
-                        <span>Configurações</span>
+                        <span>Acessar Prontuários</span>
                     </Link>
                 </nav>
-                <div className="mt-auto w-full">
+                <div className="mt-6 lg:mt-auto w-full">
                     <button
                         onClick={handleLogout}
                         className="w-full bg-red-600 p-3 rounded-lg hover:bg-red-700 transition duration-300 mt-6"
@@ -105,7 +105,7 @@ export default function AreaDoUsuario() {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 bg-gray-100 p-6 lg:p-12">
+            <div className="flex-1 bg-gray-100 p-4 sm:p-6 lg:p-12">
                 <h1 className="text-4xl font-extrabold text-center text-indigo-600 mb-6">Área do Usuário</h1>
 
                 {isLoggedIn && (
@@ -116,8 +116,8 @@ export default function AreaDoUsuario() {
                         </div>
 
                         {/* Grid de Cards */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
-                            <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-8">
+                            <div className="bg-indigo-100 p-4 sm:p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
                                 <h3 className="text-xl font-semibold text-gray-700 mb-4">Meu Perfil</h3>
                                 <p className="text-gray-500">Veja e edite suas informações pessoais.</p>
                                 <Link href="/meu_perfil">
@@ -126,7 +126,7 @@ export default function AreaDoUsuario() {
                                     </button>
                                 </Link>
                             </div>
-                            <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
+                            <div className="bg-indigo-100 p-4 sm:p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
                                 <h3 className="text-xl font-semibold text-gray-700 mb-4">Minhas Consultas</h3>
                                 <p className="text-gray-500">Visualize e gerencie suas consultas.</p>
                                 <Link href="/consultas_paciente">
@@ -135,12 +135,12 @@ export default function AreaDoUsuario() {
                                     </button>
                                 </Link>
                             </div>
-                            <div className="bg-indigo-100 p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
-                                <h3 className="text-xl font-semibold text-gray-700 mb-4">Configurações</h3>
-                                <p className="text-gray-500">Ajuste suas configurações de conta.</p>
-                                <Link href="/configuracoes">
+                            <div className="bg-indigo-100 p-4 sm:p-6 rounded-lg shadow-md hover:shadow-xl transition duration-300">
+                                <h3 className="text-xl font-semibold text-gray-700 mb-4">Prontuários</h3>
+                                <p className="text-gray-500">Acesse os seus prontuários</p>
+                                <Link href="/prontuario_paciente">
                                     <button className="mt-4 bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 transition duration-300 w-full">
-                                        Acessar Configurações
+                                        Acessar Prontuários
                                     </button>
                                 </Link>
                             </div>
@@ -151,3 +151,4 @@ export default function AreaDoUsuario() {
         </div>
     );
 }
+  

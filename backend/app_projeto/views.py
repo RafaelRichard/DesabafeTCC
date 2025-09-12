@@ -381,7 +381,6 @@ def editar_usuario(request, id):
         if request.content_type and request.content_type.startswith('multipart/form-data'):
             data = request.POST
             foto = request.FILES.get('foto')
-            print('DEBUG FOTO:', foto)  # <-- LOG PARA DEPURAÇÃO
             # Atualiza a foto se vier
             if foto:
                 # Remove a foto antiga se existir
@@ -398,7 +397,6 @@ def editar_usuario(request, id):
             usuario.telefone = data.get('telefone', usuario.telefone)
             usuario.role = data.get('role', usuario.role)
             novo_status = data.get('status', usuario.status)
-            print(f"[DEBUG] Status recebido (form): {novo_status}")
             usuario.status = novo_status
             if usuario.role == 'Psiquiatra':
                 usuario.crm = data.get('crm', usuario.crm)
@@ -417,7 +415,6 @@ def editar_usuario(request, id):
             # usuario.stripe_account_id = data.get('stripe_account_id', usuario.stripe_account_id)
             usuario.save()
             usuario.refresh_from_db()  # Garante que o path da foto está atualizado
-            print(f"[DEBUG] Status salvo no banco (json): {usuario.status}")
             serializer = UsuarioComEnderecoSerializer(usuario)
             return JsonResponse(serializer.data, status=200)
         else:
@@ -429,7 +426,6 @@ def editar_usuario(request, id):
             usuario.telefone = data.get('telefone', usuario.telefone)
             usuario.role = data.get('role', usuario.role)
             novo_status = data.get('status', usuario.status)
-            print(f"[DEBUG] Status recebido (json): {novo_status}")
             usuario.status = novo_status
             if usuario.role == 'Psiquiatra':
                 usuario.crm = data.get('crm', usuario.crm)
@@ -445,7 +441,6 @@ def editar_usuario(request, id):
                 except (TypeError, ValueError):
                     pass
             if foto is not None:
-                print('DEBUG FOTO (json):', foto)  # <-- LOG PARA DEPURAÇÃO
                 if usuario.foto and hasattr(usuario.foto, 'path') and os.path.isfile(usuario.foto.path):
                     try:
                         os.remove(usuario.foto.path)
@@ -456,7 +451,6 @@ def editar_usuario(request, id):
                 usuario.foto = data.get('foto', usuario.foto)
             usuario.save()
             usuario.refresh_from_db()  # Garante que o path da foto está atualizado
-            print(f"[DEBUG] Status salvo no banco (form): {usuario.status}")
             serializer = UsuarioComEnderecoSerializer(usuario)
             return JsonResponse(serializer.data, status=200)
 
@@ -803,8 +797,41 @@ def criar_pagamento_stripe(request):
                 agendamento.stripe_session_id = session.id
                 agendamento.valor_recebido_profissional = amount_to_profissional / 100.0
                 agendamento.valor_plataforma = application_fee / 100.0
+                previous_status = agendamento.status
                 agendamento.status = 'paga'
                 agendamento.save()
+
+                # Envia e-mail de confirmação ao paciente quando o pagamento é gravado
+                try:
+                    paciente = agendamento.usuario
+                    email = paciente.email
+                    profissional = agendamento.psiquiatra or agendamento.psicologo
+                    profissional_nome = profissional.nome if profissional else "Profissional"
+                    especialidade = profissional.especialidade if profissional and profissional.especialidade else ""
+                    data_hora = agendamento.data_hora.strftime('%d/%m/%Y %H:%M') if agendamento.data_hora else "-"
+                    consulta_link = agendamento.link_consulta or ''
+                    subject = 'Confirmação de Consulta - Desabafe'
+                    text_content = f"Olá {paciente.nome},\n\nSua consulta com o Dr. {profissional_nome} foi agendada com sucesso!\n\nDetalhes:\n- Médico: {profissional_nome}\n- Especialização: {especialidade}\n- Data e Hora: {data_hora}\n\nPara acessar sua consulta, clique no link abaixo:\n{consulta_link}\n\nObrigado por utilizar nossos serviços!\n\nAtenciosamente,\nDesabafe"
+                    html_content = f"""
+                        <div style='font-family: Arial, sans-serif; color: #222;'>
+                        <p>Olá {paciente.nome},</p>
+                        <p>Sua consulta com o Dr. <b>{profissional_nome}</b> foi agendada com <span style='color:#2f855a;font-weight:bold;'>sucesso</span>!</p>
+                        <h3>Detalhes:</h3>
+                        <ul>
+                          <li><b>Médico:</b> {profissional_nome}</li>
+                          <li><b>Especialização:</b> {especialidade}</li>
+                          <li><b>Data e Hora:</b> {data_hora}</li>
+                        </ul>
+                        <p>Para acessar sua consulta, clique no link abaixo:<br><a href='{consulta_link}' target='_blank'>{consulta_link}</a></p>
+                        <hr style='margin: 24px 0;'>
+                        <p style='font-size: 0.8em; color: #aaa;'>Desabafe - Equipe de Suporte</p>
+                        </div>
+                    """
+                    msg = EmailMultiAlternatives(subject, text_content, 'suportedesabafe@gmail.com', [email])
+                    msg.attach_alternative(html_content, "text/html")
+                    msg.send(fail_silently=True)
+                except Exception as e:
+                    print(f"Erro ao enviar email de confirmação em criar_pagamento_stripe: {e}")
             else:
                 # Log detalhado para depuração
                 print(f"[ERRO PAGAMENTO] Nenhum agendamento pendente encontrado para usuario_id={usuario_id}, profissional_id={profissional_id}, role={profissional.role}")
@@ -1037,9 +1064,10 @@ def listar_prontuarios(request):
         prontuarios = Prontuario.objects.filter(agendamento__psicologo=usuario)
     elif usuario.role == 'Admin':
         prontuarios = Prontuario.objects.all()
+    elif usuario.role == 'Paciente':
+        prontuarios = Prontuario.objects.filter(agendamento__usuario=usuario)
     else:
         prontuarios = Prontuario.objects.none()
-
     serializer = ProntuarioSerializer(prontuarios, many=True)
     return Response(serializer.data)
 
@@ -1081,10 +1109,11 @@ def prontuario_detalhe_editar(request, id):
         return Response({'error': 'Sem permissão.'}, status=403)
 
     if request.method == 'GET':
-        # Serializa com dados do paciente e agendamento
+        # Serializa com dados do paciente e agendamento, incluindo mensagem_paciente
         data = {
             'id': prontuario.id,
             'texto': prontuario.texto,
+            'mensagem_paciente': prontuario.mensagem_paciente,
             'data_criacao': prontuario.data_criacao,
             'data_atualizacao': prontuario.data_atualizacao,
             'paciente': {
@@ -1114,9 +1143,11 @@ def prontuario_detalhe_editar(request, id):
         try:
             body = request.data
             novo_texto = body.get('texto', '').strip()
+            nova_mensagem = body.get('mensagem_paciente', '').strip()
             if not novo_texto:
                 return Response({'error': 'O texto do prontuário não pode ser vazio.'}, status=400)
             prontuario.texto = novo_texto
+            prontuario.mensagem_paciente = nova_mensagem
             prontuario.save()
             return Response({'success': 'Prontuário atualizado com sucesso.'})
         except Exception as e:
@@ -1142,7 +1173,59 @@ def stripe_webhook(request):
     # Processa eventos relevantes
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
-        pass
+        try:
+            # Tenta recuperar o agendamento pelo session_id salvo
+            session_id = session.get('id') or session.get('session_id')
+            agendamento = Agendamento.objects.filter(stripe_session_id=session_id).first()
+            if agendamento:
+                # Marca como paga (status usado quando o pagamento é efetuado)
+                previous_status = agendamento.status
+                agendamento.status = 'paga'
+                # Se houver link de consulta passado na metadata, salva
+                metadata = session.get('metadata', {}) or {}
+                link = metadata.get('link_consulta') or session.get('url')
+                if link:
+                    agendamento.link_consulta = link
+                agendamento.save()
+
+                # Envia e-mail ao paciente informando a confirmação (apenas se não estava paga antes)
+                try:
+                    if previous_status != 'paga':
+                        paciente = agendamento.usuario
+                        email = paciente.email
+                        profissional = agendamento.psiquiatra or agendamento.psicologo
+                        profissional_nome = profissional.nome if profissional else "Profissional"
+                        especialidade = profissional.especialidade if profissional and profissional.especialidade else ""
+                        data_hora = agendamento.data_hora.strftime('%d/%m/%Y %H:%M') if agendamento.data_hora else "-"
+                        consulta_link = agendamento.link_consulta or link or ''
+                        subject = 'Confirmação de Consulta - Desabafe'
+                        text_content = f"Olá {paciente.nome},\n\nSua consulta com o Dr. {profissional_nome} foi agendada com sucesso!\n\nDetalhes:\n- Médico: {profissional_nome}\n- Especialização: {especialidade}\n- Data e Hora: {data_hora}\n\nPara acessar sua consulta, clique no link abaixo:\n{consulta_link}\n\nObrigado por utilizar nossos serviços!\n\nAtenciosamente,\nDesabafe"
+                        html_content = f"""
+                            <div style='font-family: Arial, sans-serif; color: #222;'>
+                            <p>Olá {paciente.nome},</p>
+                            <p>Sua consulta com o Dr. <b>{profissional_nome}</b> foi agendada com <span style='color:#2f855a;font-weight:bold;'>sucesso</span>!</p>
+                            <h3>Detalhes:</h3>
+                            <ul>
+                              <li><b>Médico:</b> {profissional_nome}</li>
+                              <li><b>Especialização:</b> {especialidade}</li>
+                              <li><b>Data e Hora:</b> {data_hora}</li>
+                            </ul>
+                            <p>Para acessar sua consulta, clique no link abaixo:<br><a href='{consulta_link}' target='_blank'>{consulta_link}</a></p>
+                            <hr style='margin: 24px 0;'>
+                            <p style='font-size: 0.8em; color: #aaa;'>Desabafe - Equipe de Suporte</p>
+                            </div>
+                        """
+                        msg = EmailMultiAlternatives(subject, text_content, 'suportedesabafe@gmail.com', [email])
+                        msg.attach_alternative(html_content, "text/html")
+                        msg.send(fail_silently=True)
+                        print(f"Email de confirmação enviado para {email} (agendamento {agendamento.id})")
+                    else:
+                        print(f"Webhook: agendamento {agendamento.id} já estava com status 'paga' — email não reenviado")
+                except Exception as e:
+                    print(f"Erro ao enviar email no webhook: {e}")
+        except Exception as e:
+            # Não interrompe o processamento do webhook, apenas registra
+            print(f"Erro ao processar checkout.session.completed: {e}")
 
     return JsonResponse({'status': 'success'})
 

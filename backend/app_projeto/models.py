@@ -9,7 +9,8 @@ from django.dispatch import receiver
 # Modelo de Prontuário: cada consulta tem UM prontuário
 class Prontuario(models.Model):
     agendamento = models.OneToOneField('Agendamento', on_delete=models.CASCADE, related_name='prontuario')
-    texto = models.TextField(blank=True, null=True)  # O texto do prontuário pode começar vazio
+    texto = models.TextField(blank=True, null=True)  # O texto do prontuário pode começar vazio (privado)
+    mensagem_paciente = models.TextField(blank=True, null=True)  # Mensagem visível ao paciente
     data_criacao = models.DateTimeField(auto_now_add=True)
     data_atualizacao = models.DateTimeField(auto_now=True)
 
@@ -108,6 +109,7 @@ class Agendamento(models.Model):
     valor_plataforma = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Valor recebido pela plataforma (R$)")
     data_criacao = models.DateTimeField(auto_now_add=True)
     stripe_session_id = models.CharField(max_length=255, blank=True, null=True, help_text="ID da sessão Stripe para refund")
+
 
     def __str__(self):
         return f"{self.usuario.nome} com {self.psiquiatra.nome if self.psiquiatra else ''}{' / ' + self.psicologo.nome if self.psicologo else ''} - {self.data_hora}"
