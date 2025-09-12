@@ -223,17 +223,3 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Stripe API Keys
-STRIPE_PUBLIC_KEY = 'pk_test_51Ra4EBHB8VIzsnsUsHz3i6hXyScud6MVajN9BLbqRQU88s6BPLGBHxroyv7e34ANJ3AwAum7x2WTnCMSjgNqTKO400vxj8h4yd'
-STRIPE_SECRET_KEY = 'sk_test_51Ra4EBHB8VIzsnsUb2sOdQQktA4KHmwwqgJQ3Z3ToyZtxcZcZeBC0FEYY4J1dqBs76HMQnXpJalTrObdYuj5Awmv000BFg62TY'
-
-
-
-
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = "suportedesabafe@gmail.com"
-EMAIL_HOST_PASSWORD = "wsmy caqt jihm oczm"
-DEFAULT_FROM_EMAIL = "suportedesabafe@gmail.com"
