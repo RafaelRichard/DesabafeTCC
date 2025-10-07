@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiUser, FiClipboard, FiSettings } from 'react-icons/fi';
+import { FiUser, FiClipboard, FiFileText, FiFolder, FiBookOpen, FiCalendar, FiClock } from 'react-icons/fi';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -108,12 +108,16 @@ export default function AreaPsicologo() {
             <span>Meu Perfil</span>
           </Link>
           <Link href="/consultas_psicologos" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
-            <FiClipboard size={20} />
+            <FiCalendar size={20} />
             <span>Minhas Consultas</span>
           </Link>
-          <Link href="/area-do-psicologo/configuracoes" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
-            <FiSettings size={20} />
-            <span>Configurações</span>
+          <Link href="/prontuario_psicologo" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
+            <FiBookOpen size={20} />
+            <span>Prontuário</span>
+          </Link>
+          <Link href="/horarios-trabalho" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
+            <FiClock size={20} />
+            <span>Horários de Trabalho</span>
           </Link>
         </nav>
   <div className="mt-6 lg:mt-auto w-full">
@@ -128,19 +132,19 @@ export default function AreaPsicologo() {
 
   {/* Main Content */}
   <div className="flex-1 bg-gradient-to-br from-indigo-50 via-emerald-50 to-white p-4 sm:p-6 lg:p-12 min-h-screen">
-        <h1 className="text-4xl font-extrabold text-center text-indigo-600 mb-8 tracking-tight drop-shadow-lg">Área do Psicólogo</h1>
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-center text-indigo-600 mb-6 sm:mb-8 tracking-tight drop-shadow-lg">Área do Psicólogo</h1>
         {isLoggedIn && (
-          <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-10 max-w-7xl mx-auto border border-emerald-100">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-8 mb-8 sm:mb-10 justify-items-center">
+          <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto border border-emerald-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 mb-6 sm:mb-8 lg:mb-10 justify-items-center">
               {/* Total Consultas - Roxo */}
-              <div className="w-full bg-indigo-700 rounded-2xl p-4 sm:p-8 shadow text-white text-center border border-indigo-700">
-                <div className="text-2xl font-bold mb-1">Total Consultas</div>
-                <div className="text-4xl font-extrabold tracking-widest">{consultasData.length}</div>
+              <div className="w-full bg-indigo-700 rounded-2xl p-4 sm:p-6 lg:p-8 shadow text-white text-center border border-indigo-700">
+                <div className="text-lg sm:text-xl lg:text-2xl font-bold mb-1">Total Consultas</div>
+                <div className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-widest">{consultasData.length}</div>
               </div>
               {/* Receita Total - Verde */}
-              <div className="w-full bg-emerald-700 rounded-2xl p-4 sm:p-8 shadow text-white text-center border border-emerald-700">
-                <div className="text-2xl font-bold mb-1">Receita Total</div>
-                <div className="text-4xl font-extrabold tracking-widest">
+              <div className="w-full bg-emerald-700 rounded-2xl p-4 sm:p-6 lg:p-8 shadow text-white text-center border border-emerald-700">
+                <div className="text-lg sm:text-xl lg:text-2xl font-bold mb-1">Receita Total</div>
+                <div className="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-extrabold tracking-wide">
                   {Number(
                     consultasData.reduce((acc, c) => acc + (c.valor_recebido_profissional || 0), 0)
                     - consultasData.filter(c => c.status === 'cancelado').reduce((acc, c) => acc + (c.valor_recebido_profissional || 0), 0)

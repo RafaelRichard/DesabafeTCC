@@ -5,6 +5,7 @@ import { getBackendUrl } from '../utils/backend';
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale/pt-BR";
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
+import AvaliacaoModal from '../components/AvaliacaoModal';
 
 interface Usuario {
   id: number;
@@ -96,6 +97,122 @@ export default function ConsultasAdmin() {
 
     fetchConsultas();
   }, []);
+
+  // Funções para alterar status das consultas
+  const handleConfirmar = async () => {
+    if (!modalConsulta) return;
+    
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/agendamentos/${modalConsulta.id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: 'confirmado' })
+      });
+      
+      if (!response.ok) throw new Error('Erro ao confirmar consulta');
+      
+      // Atualiza o estado local
+      setConsultas(prev => prev.map(c => 
+        c.id === modalConsulta.id ? { ...c, status: 'confirmado' } : c
+      ));
+      setModalConsulta({ ...modalConsulta, status: 'confirmado' });
+    } catch (error) {
+      console.error('Erro ao confirmar consulta:', error);
+      alert('Erro ao confirmar consulta. Tente novamente.');
+    }
+  };
+
+  const handleCancelar = async () => {
+    if (!modalConsulta) return;
+    
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/agendamentos/${modalConsulta.id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: 'cancelado' })
+      });
+      
+      if (!response.ok) throw new Error('Erro ao cancelar consulta');
+      
+      // Atualiza o estado local
+      setConsultas(prev => prev.map(c => 
+        c.id === modalConsulta.id ? { ...c, status: 'cancelado' } : c
+      ));
+      setModalConsulta({ ...modalConsulta, status: 'cancelado' });
+    } catch (error) {
+      console.error('Erro ao cancelar consulta:', error);
+      alert('Erro ao cancelar consulta. Tente novamente.');
+    }
+  };
+
+  const handleAlterarStatus = async () => {
+    if (!modalConsulta) return;
+    
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/agendamentos/${modalConsulta.id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: 'Concluida' })
+      });
+      
+      if (!response.ok) throw new Error('Erro ao alterar status da consulta');
+      
+      // Atualiza o estado local
+      setConsultas(prev => prev.map(c => 
+        c.id === modalConsulta.id ? { ...c, status: 'Concluida' } : c
+      ));
+      setModalConsulta({ ...modalConsulta, status: 'Concluida' });
+    } catch (error) {
+      console.error('Erro ao alterar status da consulta:', error);
+      alert('Erro ao alterar status da consulta. Tente novamente.');
+    }
+  };
+
+  // Funções para avaliação
+  const handleAvaliar = (agendamentoId: number) => {
+    // Fechar TODOS os modais primeiro
+    setModalConsulta(null);
+    setShowAllModal(false);
+    setMostrarAvaliacoes(false);
+    setAvaliacaoModalOpen(false);
+    
+    // Aguardar um tick do React e então buscar avaliações
+    setTimeout(() => {
+      buscarAvaliacoesEMostrar(agendamentoId);
+    }, 0);
+  };
+
+  const buscarAvaliacoesEMostrar = async (agendamentoId: number) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/avaliacoes/agendamento/${agendamentoId}/`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const avaliacoes = await response.json();
+        setAvaliacoesExistentes(avaliacoes);
+        setMostrarAvaliacoes(true);
+      } else {
+        alert('Erro ao buscar avaliações');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar avaliações:', error);
+      alert('Erro de conexão');
+    }
+  };
+
+  const handleAvaliacaoSuccess = () => {
+    alert('Avaliação enviada com sucesso!');
+    setAvaliacaoModalOpen(false);
+    setAgendamentoParaAvaliar(null);
+  };
 
   const consultasPorPsicologo = consultas.filter(c => c.profissional && c.profissional.role === 'Psicologo');
   const consultasPorPsiquiatra = consultas.filter(c => c.profissional && c.profissional.role === 'Psiquiatra');
@@ -201,6 +318,11 @@ export default function ConsultasAdmin() {
   // Renderização do calendário customizado
   // Modal de detalhes
   const [modalConsulta, setModalConsulta] = useState<null | any>(null);
+  // Estados para avaliação
+  const [avaliacaoModalOpen, setAvaliacaoModalOpen] = useState(false);
+  const [agendamentoParaAvaliar, setAgendamentoParaAvaliar] = useState<number | null>(null);
+  const [avaliacoesExistentes, setAvaliacoesExistentes] = useState<any[]>([]);
+  const [mostrarAvaliacoes, setMostrarAvaliacoes] = useState(false);
 
   // --- PADRÃO CONSULTAS_PSIQUIATRAS ---
   // Estados para modal de todas as consultas do dia
@@ -268,7 +390,13 @@ export default function ConsultasAdmin() {
                             <button
                               key={ev.id}
                               onClick={() => setModalConsulta(ev)}
-                              className={`w-full text-left px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white truncate text-xs md:text-sm ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}
+                              className={`w-full text-left px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white truncate text-xs md:text-sm ${
+                                ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : 
+                                ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : 
+                                ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 
+                                ev.status === 'Concluida' ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' :
+                                'bg-indigo-200 text-indigo-900'
+                              }`}
                               title={ev.title}
                             >
                               <span className="truncate block">{ev.title}</span>
@@ -343,12 +471,24 @@ export default function ConsultasAdmin() {
               <h2 className="text-2xl md:text-3xl font-bold mb-6 bg-gradient-to-r from-indigo-600 via-emerald-500 to-cyan-400 bg-clip-text text-transparent text-center">Consultas do dia {allConsultasDiaDate}</h2>
               <div className="space-y-3">
                 {allModalPaginated.map(ev => (
-                  <div key={ev.id} className={`w-full px-4 py-3 rounded-lg shadow-sm border-2 border-white text-xs md:text-sm mb-2 ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}>
+                  <div key={ev.id} className={`w-full px-4 py-3 rounded-lg shadow-sm border-2 border-white text-xs md:text-sm mb-2 ${
+                    ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : 
+                    ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : 
+                    ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 
+                    ev.status === 'Concluida' ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' :
+                    'bg-indigo-200 text-indigo-900'
+                  }`}>
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                       <div>
                         <div className="font-bold text-base md:text-lg">{ev.paciente_nome || '-'}</div>
                         <div className="text-xs">Horário: {ev.start ? format(ev.start, 'HH:mm') : '--:--'}</div>
-                        <div className="text-xs">Status: <span className={`${ev.status === 'confirmado' ? 'text-emerald-100' : ev.status === 'pendente' ? 'text-yellow-900' : ev.status === 'cancelado' ? 'text-red-100' : 'text-indigo-900'}`}>{ev.status}</span></div>
+                        <div className="text-xs">Status: <span className={`${
+                          ev.status === 'confirmado' ? 'text-emerald-100' : 
+                          ev.status === 'pendente' ? 'text-yellow-900' : 
+                          ev.status === 'cancelado' ? 'text-red-100' : 
+                          ev.status === 'Concluida' ? 'text-blue-100' :
+                          'text-indigo-900'
+                        }`}>{ev.status}</span></div>
                       </div>
                       <button
                         onClick={() => { setShowAllModal(false); setModalConsulta(ev); }}
@@ -401,12 +541,130 @@ export default function ConsultasAdmin() {
               </div>
               <div><span className="font-semibold">Profissional:</span> {modalConsulta.profissional?.nome || '-'}</div>
               <div><span className="font-semibold">Especialidade:</span> {modalConsulta.especialidade || '-'}</div>
-              <div><span className="font-semibold">Status:</span> {modalConsulta.status || '-'}</div>
+              <div><span className="font-semibold">Status:</span> <span className={`font-semibold ${
+                modalConsulta.status === 'pendente' ? 'text-yellow-600' : 
+                modalConsulta.status === 'confirmado' ? 'text-emerald-600' : 
+                modalConsulta.status === 'Concluida' ? 'text-blue-600' : 
+                'text-red-600'
+              }`}>{modalConsulta.status || '-'}</span></div>
               <div><span className="font-semibold">Data/Hora:</span> {modalConsulta.start ? format(modalConsulta.start, "dd/MM/yyyy 'às' HH:mm") : '-'}</div>
               <div><span className="font-semibold">ID da Consulta:</span> {modalConsulta.id}</div>
             </div>
+            
+            {/* Botões de ação - Admin tem acesso completo */}
+            <div className="flex flex-col gap-3 mt-6">
+              {modalConsulta?.status !== 'confirmado' && modalConsulta?.status !== 'Concluida' && (
+                <button 
+                  onClick={handleConfirmar} 
+                  className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-6 py-2 rounded-lg font-bold shadow-md hover:from-emerald-600 hover:to-cyan-600 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                >
+                  Confirmar Consulta
+                </button>
+              )}
+              
+              {modalConsulta?.status === 'confirmado' && (
+                <button 
+                  onClick={handleAlterarStatus} 
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2 rounded-lg font-bold shadow-md hover:from-blue-600 hover:to-blue-700 transition-all focus:outline-none focus:ring-2 focus:ring-blue-400"
+                >
+                  Marcar como Concluída
+                </button>
+              )}
+              
+              {modalConsulta?.status !== 'cancelado' && modalConsulta?.status !== 'Concluida' && (
+                <button 
+                  onClick={handleCancelar} 
+                  className="bg-gradient-to-r from-yellow-400 to-red-400 text-white px-6 py-2 rounded-lg font-bold shadow-md hover:from-yellow-500 hover:to-red-500 transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                >
+                  Cancelar Consulta
+                </button>
+              )}
+              
+              {modalConsulta?.status === 'Concluida' && (
+                <button 
+                  onClick={() => handleAvaliar(modalConsulta.id)} 
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-lg font-bold shadow-md hover:from-purple-600 hover:to-pink-600 transition-all focus:outline-none focus:ring-2 focus:ring-purple-400"
+                >
+                  ⭐ Ver/Gerenciar Avaliações
+                </button>
+              )}
+              
+              {/* Informação para o admin */}
+              <div className="text-xs text-gray-500 text-center mt-2">
+                Como admin, você pode gerenciar o status de qualquer consulta
+              </div>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Avaliações Existentes */}
+      {mostrarAvaliacoes && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative animate-fade-in">
+            <button 
+              onClick={() => setMostrarAvaliacoes(false)} 
+              className="absolute top-3 right-3 text-gray-400 hover:text-emerald-600 text-2xl font-bold"
+            >
+              &times;
+            </button>
+            <h3 className="text-2xl font-bold mb-4 text-emerald-700">Avaliações da Consulta</h3>
+            
+            {avaliacoesExistentes.length > 0 ? (
+              <div className="space-y-4">
+                {avaliacoesExistentes.map((av: any, index: number) => (
+                  <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-lg">
+                        {av.tipo_avaliador === 'paciente' ? '👤 Paciente' : '👨‍⚕️ Profissional'}
+                      </span>
+                      <div className="flex items-center">
+                        <span className="text-yellow-500 text-lg mr-2">
+                          {'★'.repeat(av.nota)}{'☆'.repeat(5 - av.nota)}
+                        </span>
+                        <span className="font-bold text-gray-700">{av.nota}/5</span>
+                      </div>
+                    </div>
+                    {av.comentario && (
+                      <p className="text-gray-700 italic">"{av.comentario}"</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-2">
+                      Avaliado em: {new Date(av.data_criacao).toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-600 text-lg mb-4">Nenhuma avaliação encontrada para esta consulta.</p>
+                <p className="text-gray-500 text-sm">As avaliações aparecem aqui após serem feitas pelos pacientes e profissionais.</p>
+              </div>
+            )}
+            
+            <div className="flex justify-center mt-6">
+              <button 
+                onClick={() => setMostrarAvaliacoes(false)} 
+                className="px-8 py-3 rounded-lg border border-gray-300 text-gray-700 font-bold hover:bg-gray-100 transition-all focus:outline-none focus:ring-2 focus:ring-gray-300"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Avaliação */}
+      {agendamentoParaAvaliar && (
+        <AvaliacaoModal
+          isOpen={avaliacaoModalOpen}
+          onClose={() => {
+            setAvaliacaoModalOpen(false);
+            setAgendamentoParaAvaliar(null);
+          }}
+          agendamentoId={agendamentoParaAvaliar}
+          tipoAvaliador="profissional"
+          onSuccess={handleAvaliacaoSuccess}
+        />
       )}
     </div>
   );

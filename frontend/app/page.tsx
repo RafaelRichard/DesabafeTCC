@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { Button } from "./components/Button";
+import AvaliacoesCarrossel from "./components/AvaliacoesCarrossel";
 
 export default function Home() {
   return (
@@ -95,6 +96,21 @@ export default function Home() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+     {/* Seção de Avaliações */}
+      <section className="bg-gradient-to-b from-white to-purple-50 py-20">
+        <div className="container max-w-6xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-gray-800 mb-4">
+              O que dizem nossos pacientes
+            </h2>
+            <p className="text-gray-600 text-base md:text-lg max-w-2xl mx-auto">
+              Experiências reais de pessoas que encontraram apoio e cuidado em nossa plataforma.
+            </p>
+          </div>
+          <AvaliacoesCarrossel />
         </div>
       </section>
 

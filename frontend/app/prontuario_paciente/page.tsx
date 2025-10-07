@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getBackendUrl, formatarDataHora } from '../utils/backend';
 
-function getBackendUrl() {
+function getBackendUrlLegacy() {
   // Ajuste conforme sua configuração real
   return process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 }
@@ -140,7 +141,7 @@ export default function ProntuarioPacienteListagem() {
                   </div>
                   <div className="text-sm text-gray-700 mt-2">
                     <p><span className="font-medium text-blue-700">Motivo/Observação:</span> {prontuario.agendamento.observacoes || '-'}</p>
-                    <p><span className="font-medium text-blue-700">Data:</span> {new Date(prontuario.agendamento.data_hora).toLocaleString()}</p>
+                    <p><span className="font-medium text-blue-700">Data:</span> {formatarDataHora(prontuario.agendamento.data_hora_local || prontuario.agendamento.data_hora)}</p>
                   </div>
                   {prontuario.mensagem_paciente && (
                     <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-xl">

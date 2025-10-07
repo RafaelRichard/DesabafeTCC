@@ -1,5 +1,7 @@
 "use client";
 
+"use client";
+
 
 
 import { useEffect, useState } from "react";
@@ -71,8 +73,7 @@ function BarChartSVG({ data }: { data: { status: string; count: number; color: s
 
 
 
-
-export default function ProntuarioListagem() {
+export default function ProntuarioPsicologo() {
   const [prontuarios, setProntuarios] = useState<Prontuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [mensagem, setMensagem] = useState("");
@@ -96,7 +97,7 @@ export default function ProntuarioListagem() {
           return;
         }
         const usuarioData = await usuarioResp.json();
-        if (usuarioData.role === "Psiquiatra") {
+        if (usuarioData.role === "Psicologo") {
           setIsLoggedIn(true);
           setUserName(usuarioData.nome || usuarioData.email);
           setFoto(usuarioData.foto || null);
@@ -170,7 +171,7 @@ export default function ProntuarioListagem() {
             className="w-24 h-24 rounded-full object-cover border-4 border-white mb-2 shadow"
           />
         )}
-        <h2 className="text-2xl font-semibold text-blue-800 mt-2">{userName && `Psiquiatra: ${userName}`}</h2>
+        <h2 className="text-2xl font-semibold text-blue-800 mt-2">{userName && `Psicólogo: ${userName}`}</h2>
       </div>
       <h1 className="text-4xl font-extrabold text-center text-blue-800 mb-8 tracking-tight drop-shadow-lg">Meus Prontuários</h1>
 
@@ -230,7 +231,7 @@ export default function ProntuarioListagem() {
                   </div>
                 </div>
                 <div className="flex justify-between items-center border-t border-blue-100 pt-4 mt-4">
-                  <Link href={`/prontuario_psiquiatra/editar/${prontuario.id}`} legacyBehavior>
+                  <Link href={`/prontuario_psicologo/editar/${prontuario.id}`} legacyBehavior>
                     <a className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-semibold flex items-center gap-1 drop-shadow">
                       <span>✏️</span> Editar
                     </a>

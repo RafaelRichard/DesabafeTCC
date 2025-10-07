@@ -26,5 +26,34 @@ export function getBackendUrl() {
   return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 }
 
+/**
+ * Formata data e hora corretamente, priorizando data_hora_local do backend
+ * @param dataHora - String ISO da data/hora (preferir data_hora_local se disponível)
+ * @returns String formatada "DD/MM/YYYY às HH:MM"
+ */
+export function formatarDataHora(dataHora: string | undefined | null): string {
+  if (!dataHora) return '-';
+  
+  try {
+    const data = new Date(dataHora);
+    
+    // Verifica se a data é válida
+    if (isNaN(data.getTime())) return '-';
+    
+    // Usa toLocaleString com timezone de São Paulo para garantir consistência
+    return data.toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).replace(',', ' às');
+  } catch (error) {
+    console.error('Erro ao formatar data:', error);
+    return '-';
+  }
+}
+
 // Exemplo de uso:
 

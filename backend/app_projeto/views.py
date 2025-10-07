@@ -1,58 +1,59 @@
 
-from django.http import JsonResponse, HttpResponseRedirect
+# Imports padrão do Python
 import json
+import jwt
+import mimetypes
+import os
 import re
 import requests
-from .models import Usuario, Endereco, Prontuario
-from django.contrib.auth.hashers import check_password
-from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.hashers import make_password
-from django.middleware.csrf import get_token
-from django.contrib.auth.models import User
-from django.views.decorators.csrf import csrf_protect
-from django.shortcuts import get_object_or_404
-from django.views.decorators.csrf import ensure_csrf_cookie
-from rest_framework.decorators import api_view, permission_classes
+import tempfile
+from datetime import datetime, timedelta, time, timezone
+
+# Imports do Django
+from django.conf import settings
 from django.contrib.auth import authenticate, login, get_user_model
-from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import MyTokenObtainPairSerializer
-from .permissions import IsAdmin, IsPaciente, IsPsicologo, IsPsiquiatra
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status       
-from .serializers import UsuarioSerializer, AgendamentoSerializer, EnderecoSerializer, UsuarioComEnderecoSerializer, ProntuarioSerializer
-from .models import Agendamento, AgendamentoHistorico
-import jwt
-from rest_framework_simplejwt.tokens import UntypedToken
-from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
-from rest_framework_simplejwt.tokens import RefreshToken
-from datetime import datetime   
-from django.conf import settings
-from django.core.mail import send_mail
+from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
-from django.utils.http import urlsafe_base64_encode
+from django.core.files import File
+from django.core.files.base import ContentFile
+from django.core.mail import send_mail, EmailMultiAlternatives
+from django.db import models
+from django.db.models import Q
+from django.http import JsonResponse, HttpResponseRedirect
+from django.middleware.csrf import get_token
+from django.shortcuts import get_object_or_404
+from django.template.loader import render_to_string
+from django.utils import timezone as django_timezone
+from django.utils.crypto import get_random_string
+from django.utils.dateparse import parse_date, parse_datetime
 from django.utils.encoding import force_bytes
-from django.utils.http import urlsafe_base64_decode
-from rest_framework.permissions import AllowAny
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.timezone import localtime
+from django.views.decorators.csrf import csrf_exempt, csrf_protect, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
-import os
-from django.utils.dateparse import parse_date
-# ViewSet para Prontuário: permite listar, visualizar e editar prontuários
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import api_view
+
+# Imports do Django REST Framework
+from rest_framework import status, viewsets
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from .models import Prontuario, Usuario
-from .serializers import ProntuarioSerializer
+from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+from rest_framework_simplejwt.tokens import UntypedToken, RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+# Imports de bibliotecas externas
 import stripe
-from django.conf import settings
-from .models import Agendamento, Usuario
-import json
-# Endpoint para detalhar e editar prontuário (GET e PATCH)
-from rest_framework.decorators import api_view
-from rest_framework import status
-from django.views.decorators.csrf import csrf_exempt
-from django.core.mail import EmailMultiAlternatives
+
+# Imports locais
+from .models import Usuario, Endereco, Prontuario, Agendamento, AgendamentoHistorico, HorarioTrabalho, Avaliacao
+from .permissions import IsAdmin, IsPaciente, IsPsicologo, IsPsiquiatra
+from .serializers import (
+    MyTokenObtainPairSerializer, UsuarioSerializer, AgendamentoSerializer, 
+    EnderecoSerializer, UsuarioComEnderecoSerializer, ProntuarioSerializer, 
+    HorarioTrabalhoSerializer, AvaliacaoSerializer, AvaliacaoListSerializer
+)
 
 
 def get_csrf_token(request):
@@ -526,8 +527,6 @@ def listar_agendamentos(request):
     if not token:
         return Response({'error': 'Não autenticado.'}, status=401)
     try:
-        import jwt
-        from django.conf import settings
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get('user_id')
         usuario = Usuario.objects.get(id=user_id)
@@ -545,25 +544,33 @@ def criar_agendamento(request):
     Quando eu crio um agendamento, gero automaticamente o link da videoconferência no Jitsi Meet
     e salvo no campo link_consulta do agendamento.
     """
-    from django.utils.crypto import get_random_string
     data = request.data.copy()  # Faço uma cópia mutável dos dados recebidos
     # Gero um nome único para a sala (ex: consulta-<timestamp>-<randstr>)
     nome_sala = f"consulta-{int(datetime.utcnow().timestamp())}-{get_random_string(6)}"
     url = f"https://meet.jit.si/{nome_sala}"
     data['link_consulta'] = url
     # Antes de criar, verifica se já existe agendamento no mesmo bloco de 30 minutos
-    from datetime import timedelta
-    from .models import Agendamento, Usuario
     try:
         data_hora = data.get('data_hora')
         if not data_hora:
             return Response({'error': 'data_hora é obrigatória.'}, status=400)
-        # Converte para datetime
-        from django.utils.dateparse import parse_datetime
+        
+        # CORREÇÃO: Melhor tratamento de timezone
+        
+        # Tenta fazer parse da datetime
         inicio = parse_datetime(data_hora)
         if not inicio:
-            return Response({'error': 'data_hora inválida.'}, status=400)
-        fim = inicio + timedelta(minutes=30)
+            return Response({'error': 'data_hora inválida. Use formato ISO: YYYY-MM-DDTHH:MM:SS'}, status=400)
+        
+        # Se a datetime não tem timezone info, assume timezone local do servidor
+        if inicio.tzinfo is None:
+            local_tz = django_timezone.get_current_timezone()
+            inicio = local_tz.localize(inicio)
+        
+        # Converte para UTC para salvar no banco (padrão Django)
+        inicio_utc = inicio.astimezone(timezone.utc)
+        
+        fim = inicio_utc + timedelta(minutes=30)
 
         # Descobre profissional e campo correto
         profissional_id = None
@@ -577,14 +584,17 @@ def criar_agendamento(request):
             return Response({'error': 'Profissional não informado.'}, status=400)
 
         # Busca conflitos (pendente ou confirmado)
-        from django.db.models import Q
         conflito = Agendamento.objects.filter(
             (Q(psiquiatra_id=profissional_id) | Q(psicologo_id=profissional_id)) &
-            Q(data_hora__lt=fim) & Q(data_hora__gte=inicio) &
+            Q(data_hora__lt=fim) & Q(data_hora__gte=inicio_utc) &
             Q(status__in=['pendente', 'confirmado'])
         ).exists()
         if conflito:
             return Response({'error': 'Já existe um agendamento neste horário ou bloco de 30 minutos.'}, status=400)
+            
+        # Atualiza data_hora no dict com a versão UTC para salvar
+        data['data_hora'] = inicio_utc.isoformat()
+        
     except Exception as e:
         return Response({'error': f'Erro ao validar conflito de horário: {str(e)}'}, status=400)
 
@@ -653,7 +663,6 @@ def google_login_view(request):
         # Criar usuário se não existir
         user, created = User.objects.get_or_create(username=email, defaults={"email": email, "first_name": name})
 
-        from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)
         jwt_token = str(refresh.access_token)
         return JsonResponse({"token": jwt_token})
@@ -783,7 +792,6 @@ def criar_pagamento_stripe(request):
         )
         # Salva o session_id no agendamento pendente mais recente do usuário e profissional
         usuario_id = data.get('usuario_id')
-        from .models import Agendamento
         agendamento = None
         if usuario_id:
             agendamento_qs = Agendamento.objects.filter(
@@ -808,7 +816,8 @@ def criar_pagamento_stripe(request):
                     profissional = agendamento.psiquiatra or agendamento.psicologo
                     profissional_nome = profissional.nome if profissional else "Profissional"
                     especialidade = profissional.especialidade if profissional and profissional.especialidade else ""
-                    data_hora = agendamento.data_hora.strftime('%d/%m/%Y %H:%M') if agendamento.data_hora else "-"
+                    # CORREÇÃO: Converter para timezone local antes de formatar
+                    data_hora = localtime(agendamento.data_hora).strftime('%d/%m/%Y %H:%M') if agendamento.data_hora else "-"
                     consulta_link = agendamento.link_consulta or ''
                     subject = 'Confirmação de Consulta - Desabafe'
                     text_content = f"Olá {paciente.nome},\n\nSua consulta com o Dr. {profissional_nome} foi agendada com sucesso!\n\nDetalhes:\n- Médico: {profissional_nome}\n- Especialização: {especialidade}\n- Data e Hora: {data_hora}\n\nPara acessar sua consulta, clique no link abaixo:\n{consulta_link}\n\nObrigado por utilizar nossos serviços!\n\nAtenciosamente,\nDesabafe"
@@ -848,9 +857,6 @@ def listar_agendamentos_profissional(request):
     if not token:
         return Response({'error': 'Não autenticado.'}, status=401)
     try:
-        import jwt
-        from django.conf import settings
-        from django.utils.timezone import localtime
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get('user_id')
         usuario = Usuario.objects.get(id=user_id)
@@ -886,6 +892,9 @@ def listar_agendamentos_profissional(request):
                 'status': paciente.status,
                 'role': paciente.role,
             },
+            # CORREÇÃO: Usar apenas data_hora no formato ISO com timezone
+            'data_hora': data_hora_local.isoformat() if data_hora_local else '',
+            # Manter campos legados para compatibilidade
             'data_iso': data_hora_local.isoformat() if data_hora_local else '',
             'data': data_hora_local.strftime('%Y-%m-%d') if data_hora_local else '',
             'hora': data_hora_local.strftime('%H:%M') if data_hora_local else '',
@@ -905,9 +914,6 @@ def listar_agendamentos_paciente(request):
     if not token:
         return Response({'error': 'Não autenticado.'}, status=401)
     try:
-        import jwt
-        from django.conf import settings
-        from django.utils.timezone import localtime
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get('user_id')
         usuario = Usuario.objects.get(id=user_id)
@@ -940,7 +946,6 @@ def listar_agendamentos_paciente(request):
                 'especialidade': getattr(profissional, 'especialidade', None),
                 'valor_consulta': str(getattr(profissional, 'valor_consulta', '')),
             }
-        from django.utils.timezone import localtime
         data_hora_local = localtime(ag.data_hora) if ag.data_hora else None
         # Sempre incluir os campos de valor, independente do tipo de usuário
         data.append({
@@ -955,6 +960,9 @@ def listar_agendamentos_paciente(request):
                 'role': paciente.role,
             },
             'profissional': profissional_dict,
+            # CORREÇÃO: Usar apenas data_hora no formato ISO com timezone
+            'data_hora': data_hora_local.isoformat() if data_hora_local else '',
+            # Manter campos legados para compatibilidade
             'data_iso': data_hora_local.isoformat() if data_hora_local else '',
             'data': data_hora_local.strftime('%Y-%m-%d') if data_hora_local else '',
             'hora': data_hora_local.strftime('%H:%M') if data_hora_local else '',
@@ -989,17 +997,21 @@ def horarios_ocupados(request):
             raise ValueError
     except Exception:
         return Response({'error': 'Data inválida.'}, status=400)
+    
     from .models import Agendamento, Usuario
     from datetime import timedelta
+    
     profissional = Usuario.objects.filter(id=profissional_id, role__iexact=tipo.capitalize()).first()
     if not profissional:
         return Response({'error': 'Profissional não encontrado.'}, status=404)
+    
     # Busca agendamentos confirmados ou pendentes para o dia
     if tipo == 'psiquiatra':
         ags = Agendamento.objects.filter(psiquiatra=profissional, data_hora__date=data, status__in=['pendente', 'confirmado', 'paga'])
     else:
         ags = Agendamento.objects.filter(psicologo=profissional, data_hora__date=data, status__in=['pendente', 'confirmado', 'paga'])
 
+    # Coleta horários ocupados pelos agendamentos
     horarios_ocupados = set()
     intervalo = timedelta(minutes=30)
     for ag in ags:
@@ -1012,6 +1024,95 @@ def horarios_ocupados(request):
 
     horarios = sorted(horarios_ocupados)
     return Response(horarios)
+
+
+@api_view(['GET'])
+def horarios_disponiveis(request):
+    """
+    Nova API que retorna horários disponíveis baseados nos horários de trabalho cadastrados
+    """
+    profissional_id = request.GET.get('profissional_id')
+    tipo = request.GET.get('tipo')
+    data_str = request.GET.get('data')
+    if not profissional_id or not tipo or not data_str:
+        return Response({'error': 'profissional_id, tipo e data são obrigatórios.'}, status=400)
+    
+    try:
+        data = parse_date(data_str)
+        if not data:
+            raise ValueError
+    except Exception:
+        return Response({'error': 'Data inválida.'}, status=400)
+    
+    profissional = Usuario.objects.filter(id=profissional_id, role__iexact=tipo.capitalize()).first()
+    if not profissional:
+        return Response({'error': 'Profissional não encontrado.'}, status=404)
+    
+    # Busca agendamentos confirmados ou pendentes para o dia
+    if tipo == 'psiquiatra':
+        ags = Agendamento.objects.filter(psiquiatra=profissional, data_hora__date=data, status__in=['pendente', 'confirmado', 'paga'])
+    else:
+        ags = Agendamento.objects.filter(psicologo=profissional, data_hora__date=data, status__in=['pendente', 'confirmado', 'paga'])
+
+    # Coleta horários ocupados pelos agendamentos
+    horarios_ocupados = set()
+    intervalo = timedelta(minutes=30)
+    for ag in ags:
+        inicio = ag.data_hora
+        fim = inicio + intervalo
+        atual = inicio
+        while atual < fim:
+            horarios_ocupados.add(atual.strftime('%H:%M'))
+            atual += intervalo
+
+    # Busca horários de trabalho do profissional para o dia da semana
+    dia_semana = data.weekday()  # Segunda = 0, Domingo = 6
+    horarios_trabalho = HorarioTrabalho.objects.filter(
+        profissional=profissional,
+        dia_semana=dia_semana,
+        ativo=True
+    )
+    
+    # Se não tem horários de trabalho cadastrados, usa horários fixos antigos (8h às 17h30)
+    if not horarios_trabalho.exists():
+        horarios_disponiveis = []
+        for i in range(20):  # 8h às 17h30 = 20 slots de 30 min
+            hour = 8 + i // 2
+            minute = 30 if i % 2 == 1 else 0
+            horario_str = f"{hour:02d}:{minute:02d}"
+            if horario_str not in horarios_ocupados:
+                horarios_disponiveis.append(horario_str)
+        
+        return Response({
+            'horarios_disponiveis': horarios_disponiveis,
+            'usando_horarios_fixos': True,
+            'profissional_nome': profissional.nome
+        })
+    
+    # Gera horários disponíveis baseados nos horários de trabalho cadastrados
+    horarios_disponiveis = []
+    for horario_trabalho in horarios_trabalho:
+        inicio = horario_trabalho.horario_inicio
+        fim = horario_trabalho.horario_fim
+        
+        # Gera slots de 30 em 30 minutos dentro do período de trabalho
+        atual = datetime.combine(data, inicio)
+        fim_datetime = datetime.combine(data, fim)
+        
+        while atual < fim_datetime:
+            horario_str = atual.strftime('%H:%M')
+            if horario_str not in horarios_ocupados:
+                horarios_disponiveis.append(horario_str)
+            atual += intervalo
+    
+    # Remove duplicatas e ordena
+    horarios_disponiveis = sorted(list(set(horarios_disponiveis)))
+    
+    return Response({
+        'horarios_disponiveis': horarios_disponiveis,
+        'usando_horarios_fixos': False,
+        'profissional_nome': profissional.nome
+    })
 
 @csrf_exempt
 def upload_foto_usuario(request, id):
@@ -1050,8 +1151,6 @@ def listar_prontuarios(request):
     if not token:
         return Response({'error': 'Não autenticado.'}, status=401)
     try:
-        import jwt
-        from django.conf import settings
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get('user_id')
         usuario = Usuario.objects.get(id=user_id)
@@ -1086,8 +1185,6 @@ def prontuario_detalhe_editar(request, id):
     if not token or token.lower() == 'null':
         return Response({'error': 'Não autenticado.'}, status=401)
     try:
-        import jwt
-        from django.conf import settings
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get('user_id')
         usuario = Usuario.objects.get(id=user_id)
@@ -1114,6 +1211,8 @@ def prontuario_detalhe_editar(request, id):
             'id': prontuario.id,
             'texto': prontuario.texto,
             'mensagem_paciente': prontuario.mensagem_paciente,
+            'atestado_pdf': prontuario.atestado_pdf.url if prontuario.atestado_pdf else None,
+            'receita_pdf': prontuario.receita_pdf.url if prontuario.receita_pdf else None,
             'data_criacao': prontuario.data_criacao,
             'data_atualizacao': prontuario.data_atualizacao,
             'paciente': {
@@ -1137,9 +1236,13 @@ def prontuario_detalhe_editar(request, id):
         return Response(data)
 
     if request.method == 'PATCH':
-        # Só psiquiatra do agendamento pode editar
-        if usuario.role != 'Psiquiatra' or prontuario.agendamento.psiquiatra_id != usuario.id:
+        # Psiquiatra ou psicólogo do agendamento pode editar
+        if usuario.role == 'Psiquiatra' and prontuario.agendamento.psiquiatra_id != usuario.id:
             return Response({'error': 'Apenas o psiquiatra responsável pode editar.'}, status=403)
+        if usuario.role == 'Psicologo' and prontuario.agendamento.psicologo_id != usuario.id:
+            return Response({'error': 'Apenas o psicólogo responsável pode editar.'}, status=403)
+        if usuario.role not in ['Psiquiatra', 'Psicologo', 'Admin']:
+            return Response({'error': 'Sem permissão para editar.'}, status=403)
         try:
             body = request.data
             novo_texto = body.get('texto', '').strip()
@@ -1152,6 +1255,405 @@ def prontuario_detalhe_editar(request, id):
             return Response({'success': 'Prontuário atualizado com sucesso.'})
         except Exception as e:
             return Response({'error': f'Erro ao atualizar prontuário: {str(e)}'}, status=400)
+
+
+@csrf_exempt
+@api_view(['POST'])
+def baixar_pdf_prontuario(request, id):
+    """
+    Baixa um PDF de um link e salva no prontuário
+    """
+    # Autenticação manual via JWT
+    token = request.COOKIES.get('jwt')
+    if not token:
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            possible_token = auth_header.replace('Bearer ', '').strip()
+            if possible_token and possible_token.lower() != 'null':
+                token = possible_token
+    if not token or token.lower() == 'null':
+        return Response({'error': 'Não autenticado.'}, status=401)
+    
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+
+    # Busca o prontuário
+    try:
+        prontuario = Prontuario.objects.get(id=id)
+    except Prontuario.DoesNotExist:
+        return Response({'error': 'Prontuário não encontrado.'}, status=404)
+    
+    # Verificar se o usuário tem permissão (deve ser o psiquiatra da consulta)
+    if usuario.role == 'Psiquiatra' and prontuario.agendamento.psiquiatra_id != usuario.id:
+        return Response({'error': 'Você não tem permissão para editar este prontuário'}, status=403)
+    if usuario.role == 'Psicologo' and prontuario.agendamento.psicologo_id != usuario.id:
+        return Response({'error': 'Você não tem permissão para editar este prontuário'}, status=403)
+    if usuario.role not in ['Psiquiatra', 'Admin', 'Psicologo']:
+        return Response({'error': 'Sem permissão.'}, status=403)
+    
+    try:
+        link_pdf = request.data.get('link_pdf', '').strip()
+        tipo = request.data.get('tipo', '').strip().lower()
+        
+        if not link_pdf:
+            return Response({'error': 'Link do PDF é obrigatório'}, status=400)
+        
+        if tipo not in ['atestado', 'receita']:
+            return Response({'error': 'Tipo deve ser "atestado" ou "receita"'}, status=400)
+        
+        # Validar se é uma URL válida
+        if not link_pdf.startswith(('http://', 'https://')):
+            return Response({'error': 'Link deve começar com http:// ou https://'}, status=400)
+        
+        # Converter links do Google Drive para download direto
+        if 'drive.google.com' in link_pdf:
+            if '/file/d/' in link_pdf:
+                # Extrair o ID do arquivo do Google Drive
+                try:
+                    file_id = link_pdf.split('/file/d/')[1].split('/')[0]
+                    link_pdf = f"https://drive.google.com/uc?export=download&id={file_id}"
+                    print(f"Link convertido para Google Drive: {link_pdf}")
+                except:
+                    pass
+        
+        # Converter links do OneDrive para download direto
+        elif 'onedrive.live.com' in link_pdf or '1drv.ms' in link_pdf:
+            if '?download=1' not in link_pdf:
+                link_pdf = link_pdf.replace('?', '?download=1&') if '?' in link_pdf else link_pdf + '?download=1'
+        
+        # Converter links do Dropbox para download direto
+        elif 'dropbox.com' in link_pdf:
+            link_pdf = link_pdf.replace('?dl=0', '?dl=1').replace('?dl=', '?dl=1')
+            if '?dl=1' not in link_pdf:
+                link_pdf = link_pdf + ('&dl=1' if '?' in link_pdf else '?dl=1')
+        
+        # Baixar o arquivo
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'application/pdf,application/octet-stream,*/*',
+                'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            
+            response = requests.get(link_pdf, headers=headers, timeout=30, stream=True)
+            response.raise_for_status()
+            
+            # Debug: imprimir informações do response
+            print(f"URL final: {response.url}")
+            print(f"Content-Type: {response.headers.get('content-type', 'Not provided')}")
+            print(f"Content-Length: {response.headers.get('content-length', 'Not provided')}")
+            print(f"Status Code: {response.status_code}")
+            
+            # Verificar se é um PDF (verificar por content-type ou pelos primeiros bytes)
+            content_type = response.headers.get('content-type', '').lower()
+            is_pdf_by_content_type = 'pdf' in content_type or 'application/octet-stream' in content_type
+            
+            # Verificar se o conteúdo começa com assinatura PDF (%PDF)
+            first_bytes = response.content[:10] if response.content else b''
+            is_pdf_by_content = first_bytes.startswith(b'%PDF')
+            
+            print(f"PDF by content-type: {is_pdf_by_content_type}")
+            print(f"PDF by content: {is_pdf_by_content}")
+            print(f"First 10 bytes: {first_bytes}")
+            
+            # Se ainda retornar HTML, pode ser redirecionamento do Google Drive
+            if b'<!DOCTYPE' in first_bytes or b'<html' in first_bytes[:50]:
+                # Tentar extrair link de download direto do HTML
+                html_content = response.content.decode('utf-8', errors='ignore')
+                if 'drive.google.com' in link_pdf and 'export=download' in html_content:
+                    # Procurar por link de download direto no HTML
+                    download_match = re.search(r'href="([^"]*export=download[^"]*)"', html_content)
+                    if download_match:
+                        new_link = download_match.group(1).replace('&amp;', '&')
+                        print(f"Encontrado link de download direto: {new_link}")
+                        # Fazer nova requisição com o link direto
+                        response = requests.get(new_link, headers=headers, timeout=30, stream=True)
+                        response.raise_for_status()
+                        first_bytes = response.content[:10] if response.content else b''
+                        is_pdf_by_content = first_bytes.startswith(b'%PDF')
+                        print(f"Após redirecionamento - PDF by content: {is_pdf_by_content}")
+            
+            # Validação final mais flexível
+            if not is_pdf_by_content_type and not is_pdf_by_content:
+                # Se não conseguiu identificar como PDF, mas o arquivo tem conteúdo, tentar salvar mesmo assim
+                if len(response.content) > 1000:  # Se tem mais de 1KB, pode ser um arquivo válido
+                    print("Arquivo não identificado como PDF, mas tem tamanho significativo. Tentando salvar...")
+                else:
+                    return Response({
+                        'error': 'O link não retorna um arquivo PDF válido',
+                        'debug_info': {
+                            'content_type': content_type,
+                            'first_bytes': first_bytes.decode('utf-8', errors='ignore')[:50],
+                            'status_code': response.status_code,
+                            'url': response.url
+                        }
+                    }, status=400)
+            
+            # Verificar tamanho (máximo 10MB)
+            content_length = response.headers.get('content-length')
+            actual_size = len(response.content)
+            if content_length and int(content_length) > 10 * 1024 * 1024:  # 10MB
+                return Response({'error': 'Arquivo muito grande (máximo 10MB)'}, status=400)
+            if actual_size > 10 * 1024 * 1024:  # 10MB
+                return Response({'error': 'Arquivo muito grande (máximo 10MB)'}, status=400)
+            
+            # Criar nome do arquivo
+            paciente_nome = prontuario.agendamento.usuario.nome.replace(' ', '_')
+            # CORREÇÃO: Converter para timezone local antes de formatar
+            data_consulta = localtime(prontuario.agendamento.data_hora).strftime('%Y%m%d')
+            nome_arquivo = f"{tipo}_{paciente_nome}_{data_consulta}.pdf"
+            
+            # Salvar o arquivo
+            arquivo_content = ContentFile(response.content, name=nome_arquivo)
+            
+            if tipo == 'atestado':
+                # Remover arquivo anterior se existir
+                if prontuario.atestado_pdf:
+                    try:
+                        prontuario.atestado_pdf.delete(save=False)
+                    except:
+                        pass
+                prontuario.atestado_pdf = arquivo_content
+            else:  # receita
+                # Remover arquivo anterior se existir
+                if prontuario.receita_pdf:
+                    try:
+                        prontuario.receita_pdf.delete(save=False)
+                    except:
+                        pass
+                prontuario.receita_pdf = arquivo_content
+            
+            prontuario.save()
+            
+            return Response({
+                'success': True,
+                'message': f'{tipo.capitalize()} baixado e salvo com sucesso',
+                'arquivo': nome_arquivo
+            })
+            
+        except requests.exceptions.Timeout:
+            return Response({'error': 'Tempo limite excedido ao baixar o arquivo'}, status=400)
+        except requests.exceptions.RequestException as e:
+            return Response({'error': f'Erro ao baixar o arquivo: {str(e)}'}, status=400)
+        
+    except Exception as e:
+        return Response({'error': f'Erro interno: {str(e)}'}, status=500)
+
+
+@csrf_exempt
+@api_view(['POST'])
+def enviar_prontuario_email(request, id):
+    """
+    Envia os PDFs do prontuário e a mensagem para o email do paciente
+    """
+    # Autenticação manual via JWT
+    token = request.COOKIES.get('jwt')
+    if not token:
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            possible_token = auth_header.replace('Bearer ', '').strip()
+            if possible_token and possible_token.lower() != 'null':
+                token = possible_token
+    if not token or token.lower() == 'null':
+        return Response({'error': 'Não autenticado.'}, status=401)
+    
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+
+    # Busca o prontuário
+    try:
+        prontuario = Prontuario.objects.get(id=id)
+    except Prontuario.DoesNotExist:
+        return Response({'error': 'Prontuário não encontrado.'}, status=404)
+    
+    # Verificar se o usuário tem permissão (deve ser o profissional da consulta)
+    if usuario.role == 'Psiquiatra' and prontuario.agendamento.psiquiatra_id != usuario.id:
+        return Response({'error': 'Você não tem permissão para enviar este prontuário'}, status=403)
+    if usuario.role == 'Psicologo' and prontuario.agendamento.psicologo_id != usuario.id:
+        return Response({'error': 'Você não tem permissão para enviar este prontuário'}, status=403)
+    if usuario.role not in ['Psiquiatra', 'Admin', 'Psicologo']:
+        return Response({'error': 'Sem permissão.'}, status=403)
+    
+    try:
+        import mimetypes
+        
+        paciente = prontuario.agendamento.usuario
+        profissional = prontuario.agendamento.psiquiatra or prontuario.agendamento.psicologo
+        # CORREÇÃO: Converter para timezone local antes de formatar
+        data_consulta = localtime(prontuario.agendamento.data_hora).strftime('%d/%m/%Y às %H:%M')
+        
+        # Preparar o conteúdo do email
+        profissional_tipo = "Psiquiatra" if profissional.role == "Psiquiatra" else "Psicólogo"
+        assunto = f"Mensagem da sua consulta - {data_consulta}"
+        
+        # Template específico para psicólogos (sem documentos)
+        if profissional.role == "Psicologo":
+            mensagem_html = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #28a745;">💬 Mensagem da sua Sessão de Psicologia</h2>
+                    
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-top: 0; color: #495057;">Dados da Sessão:</h3>
+                        <p><strong>Data:</strong> {data_consulta}</p>
+                        <p><strong>Psicólogo(a):</strong> {profissional.nome}</p>
+                        <p><strong>Especialidade:</strong> {getattr(profissional, 'especialidade', 'Não informada')}</p>
+                    </div>
+                    
+                    {"<div style='background-color: #e8f5e8; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;'><h3 style='margin-top: 0; color: #155724;'>💬 Mensagem do seu Psicólogo:</h3><p style='margin-bottom: 0;'>" + prontuario.mensagem_paciente + "</p></div>" if prontuario.mensagem_paciente else ""}
+                    
+                    <div style="margin: 30px 0; padding: 15px; background-color: #d1ecf1; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                        <p style="margin: 0; font-size: 14px;">
+                            <strong>💡 Lembre-se:</strong> Continue praticando os exercícios e técnicas discutidas em nossa sessão. 
+                            Caso tenha dúvidas, não hesite em entrar em contato.
+                        </p>
+                    </div>
+                    
+                    <div style="margin-top: 30px; text-align: center; font-size: 12px; color: #6c757d; border-top: 1px solid #eee; padding-top: 20px;">
+                        <p>Este email foi enviado automaticamente pelo sistema de prontuários.</p>
+                        <p><strong>Clínica Digital</strong> | Cuidando da sua saúde mental</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+        else:
+            # Template para psiquiatras (com documentos)
+            mensagem_html = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #2c5aa0;">📋 Documentos da sua Consulta</h2>
+                    
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-top: 0; color: #495057;">Dados da Consulta:</h3>
+                        <p><strong>Data:</strong> {data_consulta}</p>
+                        <p><strong>Profissional:</strong> {profissional.nome}</p>
+                        <p><strong>Especialidade:</strong> {getattr(profissional, 'especialidade', 'Não informada')}</p>
+                    </div>
+                    
+                    {"<div style='background-color: #e8f5e8; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;'><h3 style='margin-top: 0; color: #155724;'>💬 Mensagem do Profissional:</h3><p style='margin-bottom: 0;'>" + prontuario.mensagem_paciente + "</p></div>" if prontuario.mensagem_paciente else ""}
+                    
+                    <div style="margin: 30px 0;">
+                        <p><strong>Documentos anexados:</strong></p>
+                        <ul style="list-style-type: none; padding: 0;">
+                            {"<li style='padding: 8px 0; border-bottom: 1px solid #eee;'>📄 Atestado Médico</li>" if prontuario.atestado_pdf else ""}
+                            {"<li style='padding: 8px 0; border-bottom: 1px solid #eee;'>📋 Receita Médica</li>" if prontuario.receita_pdf else ""}
+                        </ul>
+                    </div>
+                    
+                    <div style="margin: 30px 0; padding: 15px; background-color: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+                        <p style="margin: 0; font-size: 14px;">
+                            <strong>⚠️ Importante:</strong> Estes documentos são confidenciais e destinados exclusivamente ao paciente. 
+                            Mantenha-os em local seguro e não os compartilhe com terceiros não autorizados.
+                        </p>
+                    </div>
+                    
+                    <div style="margin-top: 30px; text-align: center; font-size: 12px; color: #6c757d; border-top: 1px solid #eee; padding-top: 20px;">
+                        <p>Este email foi enviado automaticamente pelo sistema de prontuários.</p>
+                        <p><strong>Clínica Digital</strong> | Cuidando da sua saúde mental</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+        
+        # Mensagem de texto também diferenciada
+        if profissional.role == "Psicologo":
+            mensagem_texto = f"""
+            Mensagem da sua Sessão de Psicologia - {data_consulta}
+            
+            Olá {paciente.nome},
+            
+            Seguem as orientações da sua sessão realizada em {data_consulta} com {profissional.nome}.
+            
+            {f"Mensagem do seu Psicólogo: {prontuario.mensagem_paciente}" if prontuario.mensagem_paciente else ""}
+            
+            Lembre-se de praticar os exercícios e técnicas discutidas em nossa sessão.
+            
+            Atenciosamente,
+            Clínica Digital
+            """
+        else:
+            mensagem_texto = f"""
+            Documentos da sua Consulta - {data_consulta}
+            
+            Olá {paciente.nome},
+            
+            Seguem em anexo os documentos da sua consulta realizada em {data_consulta} com {profissional.nome}.
+            
+            {f"Mensagem do Profissional: {prontuario.mensagem_paciente}" if prontuario.mensagem_paciente else ""}
+            
+            Documentos anexados:
+            {f"- Atestado Médico" if prontuario.atestado_pdf else ""}
+            {f"- Receita Médica" if prontuario.receita_pdf else ""}
+            
+            IMPORTANTE: Estes documentos são confidenciais e destinados exclusivamente ao paciente.
+            
+            Atenciosamente,
+            Clínica Digital
+            """
+        
+        # Criar o email
+        email = EmailMultiAlternatives(
+            subject=assunto,
+            body=mensagem_texto,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[paciente.email]
+        )
+        
+        # Adicionar versão HTML
+        email.attach_alternative(mensagem_html, "text/html")
+        
+        # Anexar PDFs se existirem (apenas para psiquiatras)
+        anexos_enviados = []
+        
+        if profissional.role == "Psiquiatra":
+            if prontuario.atestado_pdf:
+                try:
+                    with open(prontuario.atestado_pdf.path, 'rb') as file:
+                        email.attach(f"atestado_{paciente.nome.replace(' ', '_')}.pdf", file.read(), 'application/pdf')
+                        anexos_enviados.append('Atestado')
+                except Exception as e:
+                    print(f"Erro ao anexar atestado: {e}")
+            
+            if prontuario.receita_pdf:
+                try:
+                    with open(prontuario.receita_pdf.path, 'rb') as file:
+                        email.attach(f"receita_{paciente.nome.replace(' ', '_')}.pdf", file.read(), 'application/pdf')
+                        anexos_enviados.append('Receita')
+                except Exception as e:
+                    print(f"Erro ao anexar receita: {e}")
+        else:
+            # Para psicólogos, apenas indicar que a mensagem foi enviada
+            if prontuario.mensagem_paciente:
+                anexos_enviados.append('Mensagem')
+        
+        # Enviar o email
+        email.send()
+        
+        return Response({
+            'success': True,
+            'message': f'Email enviado com sucesso para {paciente.email}',
+            'anexos_enviados': anexos_enviados,
+            'destinatario': paciente.email
+        })
+        
+    except Exception as e:
+        return Response({'error': f'Erro ao enviar email: {str(e)}'}, status=500)
         
 @csrf_exempt
 def stripe_webhook(request):
@@ -1178,6 +1680,14 @@ def stripe_webhook(request):
             session_id = session.get('id') or session.get('session_id')
             agendamento = Agendamento.objects.filter(stripe_session_id=session_id).first()
             if agendamento:
+                # CORREÇÃO: Só marca como paga se o payment_intent existir (pagamento concluído)
+                payment_intent = session.get('payment_intent')
+                print(f"DEBUG WEBHOOK: session_id={session_id}, payment_intent={payment_intent}, payment_status={session.get('payment_status')}")
+                
+                if not payment_intent:
+                    print(f"WEBHOOK: Sessão completada mas sem payment_intent - usuário abriu a página mas não pagou. Mantendo status pendente.")
+                    return JsonResponse({'status': 'success', 'message': 'Session sem payment_intent - mantido como pendente'})
+                
                 # Marca como paga (status usado quando o pagamento é efetuado)
                 previous_status = agendamento.status
                 agendamento.status = 'paga'
@@ -1187,6 +1697,7 @@ def stripe_webhook(request):
                 if link:
                     agendamento.link_consulta = link
                 agendamento.save()
+                print(f"WEBHOOK: Agendamento {agendamento.id} marcado como pago com sucesso!")
 
                 # Envia e-mail ao paciente informando a confirmação (apenas se não estava paga antes)
                 try:
@@ -1196,7 +1707,8 @@ def stripe_webhook(request):
                         profissional = agendamento.psiquiatra or agendamento.psicologo
                         profissional_nome = profissional.nome if profissional else "Profissional"
                         especialidade = profissional.especialidade if profissional and profissional.especialidade else ""
-                        data_hora = agendamento.data_hora.strftime('%d/%m/%Y %H:%M') if agendamento.data_hora else "-"
+                        # CORREÇÃO: Converter para timezone local antes de formatar
+                        data_hora = localtime(agendamento.data_hora).strftime('%d/%m/%Y %H:%M') if agendamento.data_hora else "-"
                         consulta_link = agendamento.link_consulta or link or ''
                         subject = 'Confirmação de Consulta - Desabafe'
                         text_content = f"Olá {paciente.nome},\n\nSua consulta com o Dr. {profissional_nome} foi agendada com sucesso!\n\nDetalhes:\n- Médico: {profissional_nome}\n- Especialização: {especialidade}\n- Data e Hora: {data_hora}\n\nPara acessar sua consulta, clique no link abaixo:\n{consulta_link}\n\nObrigado por utilizar nossos serviços!\n\nAtenciosamente,\nDesabafe"
@@ -1241,8 +1753,6 @@ def criar_stripe_connect_account(request, id=None):
     if not token:
         return Response({'error': 'Não autenticado.'}, status=401)
     try:
-        import jwt
-        from django.conf import settings
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get('user_id')
         usuario = Usuario.objects.get(id=user_id)
@@ -1315,8 +1825,6 @@ def status_connect_account(request, id=None):
     if not token:
         return Response({'error': 'Não autenticado.'}, status=401)
     try:
-        import jwt
-        from django.conf import settings
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get('user_id')
         usuario = Usuario.objects.get(id=user_id)
@@ -1359,16 +1867,93 @@ def status_connect_account(request, id=None):
 def estornar_pagamento_stripe(request, agendamento_id):
     """
     Realiza o estorno (refund) do pagamento Stripe referente ao agendamento.
+    Se o agendamento estiver apenas pendente (sem pagamento), cancela diretamente.
     """
     try:
-        from .models import Agendamento
+        print(f"DEBUG: Tentando cancelar agendamento {agendamento_id}")
         agendamento = Agendamento.objects.get(id=agendamento_id)
+        print(f"DEBUG: Agendamento encontrado. Status atual: {agendamento.status}")
+        print(f"DEBUG: stripe_session_id: {agendamento.stripe_session_id}")
+        
+        # Se o agendamento está pendente (sem pagamento), apenas cancela
+        if agendamento.status == 'pendente':
+            print(f"DEBUG: Status pendente, cancelando diretamente...")
+            agendamento.status = "cancelado"
+            agendamento.save()
+            
+            # Envia e-mail ao paciente informando o cancelamento
+            paciente = agendamento.usuario
+            email = paciente.email
+            profissional = agendamento.psiquiatra or agendamento.psicologo
+            profissional_nome = profissional.nome if profissional else "Profissional"
+            # CORREÇÃO: Converter para timezone local antes de formatar
+            data_hora = localtime(agendamento.data_hora).strftime('%d/%m/%Y %H:%M') if agendamento.data_hora else "-"
+            subject = 'Cancelamento de Consulta - Desabafe'
+            text_content = f"Olá,\n\nSua consulta com {profissional_nome} em {data_hora} foi cancelada.\n\nSe tiver dúvidas, entre em contato com o suporte.\n\nEquipe Desabafe."
+            html_content = f"""
+                <div style='font-family: Arial, sans-serif; color: #222;'>
+                <h2>Cancelamento de Consulta</h2>
+                <p>Olá,</p>
+                <p>Sua consulta com <b>{profissional_nome}</b> em <b>{data_hora}</b> foi <span style='color:#e53e3e;font-weight:bold;'>cancelada</span>.</p>
+                <p style='font-size: 0.9em; color: #888;'>Se tiver dúvidas, entre em contato com o suporte.</p>
+                <hr style='margin: 24px 0;'>
+                <p style='font-size: 0.8em; color: #aaa;'>Desabafe - Equipe de Suporte</p>
+                </div>
+            """
+            msg = EmailMultiAlternatives(subject, text_content, 'suportedesabafe@gmail.com', [email])
+            msg.attach_alternative(html_content, "text/html")
+            msg.send(fail_silently=True)
+            
+            print(f"DEBUG: Cancelamento concluído com sucesso!")
+            return JsonResponse({"success": True, "message": "Consulta cancelada (sem estorno - pagamento não realizado)."})
+        
+        # Se o agendamento foi pago, faz o estorno
+        print(f"DEBUG: Status não é pendente, verificando session_id...")
         if not agendamento.stripe_session_id:
-            return JsonResponse({"error": "Agendamento não possui session_id Stripe."}, status=400)
+            print(f"DEBUG: Sem session_id Stripe - cancelando diretamente")
+            # Se não tem session_id mas está marcado como pago, é um erro - cancela direto
+            agendamento.status = "cancelado"
+            agendamento.save()
+            return JsonResponse({"success": True, "message": "Consulta cancelada (sem session_id - possível erro no webhook)."}, status=200)
+        
+        print(f"DEBUG: Recuperando sessão do Stripe...")
         session = stripe.checkout.Session.retrieve(agendamento.stripe_session_id)
         payment_intent = session.get("payment_intent")
         if not payment_intent:
-            return JsonResponse({"error": "Session Stripe sem payment_intent."}, status=400)
+            print(f"DEBUG: Sem payment_intent na sessão - cancelando sem estorno")
+            # Se não tem payment_intent, o pagamento não foi concluído - cancela direto sem estorno
+            agendamento.status = "cancelado"
+            agendamento.save()
+            
+            # Envia e-mail de cancelamento
+            paciente = agendamento.usuario
+            profissional = agendamento.psiquiatra or agendamento.psicologo
+            profissional_nome = profissional.nome if profissional else "Profissional"
+            # CORREÇÃO: Converter para timezone local antes de formatar
+            data_hora = localtime(agendamento.data_hora).strftime('%d/%m/%Y %H:%M') if agendamento.data_hora else "-"
+            
+            try:
+                subject = 'Cancelamento de Consulta - Desabafe'
+                text_content = f"Olá,\n\nSua consulta com {profissional_nome} em {data_hora} foi cancelada.\n\nSe tiver dúvidas, entre em contato com o suporte.\n\nEquipe Desabafe."
+                html_content = f"""
+                    <div style='font-family: Arial, sans-serif; color: #222;'>
+                    <h2>Cancelamento de Consulta</h2>
+                    <p>Olá,</p>
+                    <p>Sua consulta com <b>{profissional_nome}</b> em <b>{data_hora}</b> foi <span style='color:#e53e3e;font-weight:bold;'>cancelada</span>.</p>
+                    <p style='font-size: 0.9em; color: #888;'>Se tiver dúvidas, entre em contato com o suporte.</p>
+                    <hr style='margin: 24px 0;'>
+                    <p style='font-size: 0.8em; color: #aaa;'>Desabafe - Equipe de Suporte</p>
+                    </div>
+                """
+                msg = EmailMultiAlternatives(subject, text_content, 'suportedesabafe@gmail.com', [paciente.email])
+                msg.attach_alternative(html_content, "text/html")
+                msg.send(fail_silently=True)
+            except:
+                pass
+            
+            return JsonResponse({"success": True, "message": "Consulta cancelada (sem estorno - pagamento não concluído no Stripe)."}, status=200)
+        
+        print(f"DEBUG: Criando refund...")
         refund = stripe.Refund.create(payment_intent=payment_intent)
         agendamento.status = "cancelado"
         agendamento.save()
@@ -1378,7 +1963,8 @@ def estornar_pagamento_stripe(request, agendamento_id):
         email = paciente.email
         profissional = agendamento.psiquiatra or agendamento.psicologo
         profissional_nome = profissional.nome if profissional else "Profissional"
-        data_hora = agendamento.data_hora.strftime('%d/%m/%Y %H:%M') if agendamento.data_hora else "-"
+        # CORREÇÃO: Converter para timezone local antes de formatar
+        data_hora = localtime(agendamento.data_hora).strftime('%d/%m/%Y %H:%M') if agendamento.data_hora else "-"
         subject = 'Estorno de pagamento - Desabafe'
         text_content = f"Olá,\n\nSeu pagamento referente à consulta com {profissional_nome} em {data_hora} foi estornado com sucesso.\n\nSe tiver dúvidas, entre em contato com o suporte.\n\nEquipe Desabafe."
         html_content = f"""
@@ -1396,8 +1982,439 @@ def estornar_pagamento_stripe(request, agendamento_id):
         msg.attach_alternative(html_content, "text/html")
         msg.send(fail_silently=True)
 
-        return JsonResponse({"success": True, "refund_id": refund.id})
+        print(f"DEBUG: Estorno concluído com sucesso!")
+        return JsonResponse({"success": True, "refund_id": refund.id, "message": "Estorno realizado com sucesso."})
     except Agendamento.DoesNotExist:
+        print(f"DEBUG: Agendamento {agendamento_id} não encontrado!")
         return JsonResponse({"error": "Agendamento não encontrado."}, status=404)
     except Exception as e:
+        print(f"DEBUG: Erro ao cancelar/estornar: {str(e)}")
+        print(f"DEBUG: Tipo do erro: {type(e)}")
+        import traceback
+        print(f"DEBUG: Traceback completo:\n{traceback.format_exc()}")
         return JsonResponse({"error": str(e)}, status=400)
+
+
+# REGION HORARIOS DE TRABALHO
+
+@api_view(['GET', 'POST', 'PUT'])
+def horarios_trabalho_profissional(request):
+    """
+    GET: Lista horários de trabalho do profissional logado
+    POST: Cria novo horário de trabalho para o profissional logado
+    PUT: Atualiza horários de trabalho em lote (substitui todos os horários)
+    """
+    # Busca o usuário logado via JWT
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+    
+    # Verifica se é um profissional
+    if usuario.role not in ['Psiquiatra', 'Psicologo']:
+        return Response({'error': 'Apenas profissionais podem gerenciar horários de trabalho.'}, status=403)
+    
+    if request.method == 'GET':
+        horarios = HorarioTrabalho.objects.filter(profissional=usuario).order_by('dia_semana', 'horario_inicio')
+        serializer = HorarioTrabalhoSerializer(horarios, many=True)
+        return Response(serializer.data)
+    
+    elif request.method == 'POST':
+        data = request.data.copy()
+        data['profissional'] = usuario.id
+        serializer = HorarioTrabalhoSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    elif request.method == 'PUT':
+        # Atualização em lote - substitui todos os horários do profissional
+        horarios_data = request.data.get('horarios', [])
+        
+        if not isinstance(horarios_data, list):
+            return Response({'error': 'Campo "horarios" deve ser uma lista.'}, status=400)
+        
+        # Remove todos os horários existentes do profissional
+        HorarioTrabalho.objects.filter(profissional=usuario).delete()
+        
+        # Cria os novos horários
+        novos_horarios = []
+        erros = []
+        
+        for i, horario_data in enumerate(horarios_data):
+            horario_data_copy = horario_data.copy()
+            horario_data_copy['profissional'] = usuario.id
+            
+            serializer = HorarioTrabalhoSerializer(data=horario_data_copy)
+            if serializer.is_valid():
+                novos_horarios.append(serializer.save())
+            else:
+                erros.append({
+                    'indice': i,
+                    'erro': serializer.errors
+                })
+        
+        if erros:
+            # Se houve erros, remove os horários criados e retorna erro
+            for horario in novos_horarios:
+                horario.delete()
+            return Response({
+                'error': 'Erro ao validar horários.',
+                'detalhes': erros
+            }, status=400)
+        
+        # Retorna os horários criados
+        serializer = HorarioTrabalhoSerializer(novos_horarios, many=True)
+        return Response({
+            'message': 'Horários atualizados com sucesso.',
+            'horarios': serializer.data
+        }, status=200)
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+def horario_trabalho_detalhe(request, id):
+    """
+    GET: Detalha horário de trabalho específico
+    PUT: Atualiza horário de trabalho
+    DELETE: Exclui horário de trabalho
+    """
+    # Busca o usuário logado via JWT
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+    
+    try:
+        horario = HorarioTrabalho.objects.get(id=id)
+    except HorarioTrabalho.DoesNotExist:
+        return Response({'error': 'Horário de trabalho não encontrado.'}, status=404)
+    
+    # Verifica se o horário pertence ao usuário logado ou se é admin
+    if horario.profissional != usuario and usuario.role != 'Admin':
+        return Response({'error': 'Você não tem permissão para acessar este horário.'}, status=403)
+    
+    if request.method == 'GET':
+        serializer = HorarioTrabalhoSerializer(horario)
+        return Response(serializer.data)
+    
+    elif request.method == 'PUT':
+        serializer = HorarioTrabalhoSerializer(horario, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    elif request.method == 'DELETE':
+        horario.delete()
+        return Response({'success': 'Horário de trabalho excluído com sucesso.'}, status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET'])
+def horarios_trabalho_profissional_publico(request, profissional_id):
+    """
+    Lista horários de trabalho de um profissional específico (acesso público para agendamentos)
+    """
+    try:
+        profissional = Usuario.objects.get(id=profissional_id, role__in=['Psiquiatra', 'Psicologo'])
+    except Usuario.DoesNotExist:
+        return Response({'error': 'Profissional não encontrado.'}, status=404)
+    
+    horarios = HorarioTrabalho.objects.filter(
+        profissional=profissional, 
+        ativo=True
+    ).order_by('dia_semana', 'horario_inicio')
+    
+    serializer = HorarioTrabalhoSerializer(horarios, many=True)
+    return Response(serializer.data)
+
+
+# ===================== VIEWS DE AVALIAÇÃO =====================
+
+@api_view(['POST'])
+def criar_avaliacao(request):
+    """
+    Cria uma nova avaliação para uma consulta concluída
+    """
+    print(f"DEBUG: Dados recebidos: {request.data}")
+    
+    # Busca o usuário logado via JWT manualmente
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+        # Adiciona o usuário ao context para o serializer
+        request.user = usuario
+        print(f"DEBUG: Usuário autenticado: {usuario.nome} (ID: {usuario.id})")
+    except Exception as e:
+        print(f"DEBUG: Erro de autenticação: {e}")
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+    
+    serializer = AvaliacaoSerializer(data=request.data, context={'request': request})
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    print(f"DEBUG: Erros de validação: {serializer.errors}")
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+def listar_avaliacoes_usuario(request):
+    """
+    Lista avaliações feitas pelo usuário autenticado
+    """
+    # Busca o usuário logado via JWT manualmente
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+    
+    avaliacoes = Avaliacao.objects.filter(avaliador=usuario).order_by('-data_criacao')
+    serializer = AvaliacaoSerializer(avaliacoes, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+def listar_avaliacoes_agendamento(request, agendamento_id):
+    """
+    Lista avaliações de um agendamento específico
+    """
+    # Busca o usuário logado via JWT manualmente
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+    
+    try:
+        agendamento = Agendamento.objects.get(id=agendamento_id)
+    except Agendamento.DoesNotExist:
+        return Response({'error': 'Agendamento não encontrado.'}, status=404)
+    
+    # Verifica se o usuário tem permissão para ver as avaliações deste agendamento
+    # Admin tem acesso total, outros usuários apenas aos seus próprios agendamentos
+    if usuario.role != 'Admin' and usuario not in [agendamento.usuario, agendamento.psiquiatra, agendamento.psicologo]:
+        return Response({'error': 'Sem permissão para ver as avaliações deste agendamento.'}, status=403)
+    
+    avaliacoes = Avaliacao.objects.filter(agendamento=agendamento)
+    serializer = AvaliacaoSerializer(avaliacoes, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+def listar_avaliacoes_profissional(request, profissional_id):
+    """
+    Lista avaliações recebidas por um profissional (acesso público)
+    """
+    try:
+        profissional = Usuario.objects.get(id=profissional_id, role__in=['Psiquiatra', 'Psicologo'])
+    except Usuario.DoesNotExist:
+        return Response({'error': 'Profissional não encontrado.'}, status=404)
+    
+    # Busca agendamentos onde o profissional esteve envolvido
+    agendamentos = Agendamento.objects.filter(
+        models.Q(psiquiatra=profissional) | models.Q(psicologo=profissional),
+        status='Concluida'
+    )
+    
+    # Busca avaliações desses agendamentos feitas por pacientes
+    avaliacoes = Avaliacao.objects.filter(
+        agendamento__in=agendamentos,
+        tipo_avaliador='paciente'
+    ).order_by('-data_criacao')
+    
+    serializer = AvaliacaoListSerializer(avaliacoes, many=True)
+    
+    # Calcula estatísticas das avaliações
+    if avaliacoes.exists():
+        notas = [av.nota for av in avaliacoes]
+        media_avaliacoes = sum(notas) / len(notas)
+        total_avaliacoes = len(notas)
+    else:
+        media_avaliacoes = 0
+        total_avaliacoes = 0
+    
+    return Response({
+        'avaliacoes': serializer.data,
+        'estatisticas': {
+            'media_avaliacoes': round(media_avaliacoes, 1),
+            'total_avaliacoes': total_avaliacoes
+        }
+    })
+
+
+@api_view(['GET'])
+def listar_melhores_avaliacoes(request):
+    """
+    Lista as melhores avaliações (nota >= 4) de todos os profissionais
+    Para usar no carrossel da página inicial
+    """
+    
+    # Busca avaliações de pacientes com nota >= 4 e que tenham comentário
+    avaliacoes = Avaliacao.objects.filter(
+        nota__gte=4,
+        tipo_avaliador='paciente',
+        comentario__isnull=False
+    ).exclude(
+        comentario__exact=''
+    ).exclude(
+        comentario__exact=' '
+    ).order_by('-nota', '-data_criacao')[:20]  # Limita a 20 melhores avaliações
+    
+    data = []
+    for avaliacao in avaliacoes:
+        # Determina o nome do profissional
+        profissional = None
+        if avaliacao.agendamento.psiquiatra:
+            profissional = avaliacao.agendamento.psiquiatra
+        elif avaliacao.agendamento.psicologo:
+            profissional = avaliacao.agendamento.psicologo
+        
+        if profissional:
+            # Determina o tipo do profissional
+            tipo_profissional = None
+            if avaliacao.agendamento.psiquiatra:
+                tipo_profissional = 'Psiquiatra'
+            elif avaliacao.agendamento.psicologo:
+                tipo_profissional = 'Psicólogo'
+            
+            # Corrigir caminho da foto (remover /media/ duplicado se existir)
+            avaliador_foto_url = None
+            if avaliacao.avaliador.foto:
+                avaliador_foto_url = avaliacao.avaliador.foto.url
+                if avaliador_foto_url.startswith('/media/media/'):
+                    avaliador_foto_url = avaliador_foto_url.replace('/media/media/', '/media/', 1)
+            
+            profissional_foto_url = None
+            if profissional.foto:
+                profissional_foto_url = profissional.foto.url
+                if profissional_foto_url.startswith('/media/media/'):
+                    profissional_foto_url = profissional_foto_url.replace('/media/media/', '/media/', 1)
+            
+            data.append({
+                'id': avaliacao.id,
+                'nota': avaliacao.nota,
+                'comentario': avaliacao.comentario,
+                'data_criacao': avaliacao.data_criacao.isoformat(),
+                'avaliador_nome': avaliacao.avaliador.nome,
+                'avaliador_foto': avaliador_foto_url,
+                'profissional_nome': profissional.nome,
+                'profissional_foto': profissional_foto_url,
+                'profissional_tipo': tipo_profissional,
+                'tipo_avaliador_display': avaliacao.get_tipo_avaliador_display()
+            })
+    
+    return Response(data)
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+def detalhes_avaliacao(request, avaliacao_id):
+    """
+    Visualiza, edita ou exclui uma avaliação específica
+    """
+    # Busca o usuário logado via JWT manualmente
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+    
+    try:
+        avaliacao = Avaliacao.objects.get(id=avaliacao_id)
+    except Avaliacao.DoesNotExist:
+        return Response({'error': 'Avaliação não encontrada.'}, status=404)
+    
+    # Verifica se o usuário tem permissão para acessar esta avaliação
+    if avaliacao.avaliador != usuario:
+        return Response({'error': 'Sem permissão para acessar esta avaliação.'}, status=403)
+    
+    if request.method == 'GET':
+        serializer = AvaliacaoSerializer(avaliacao)
+        return Response(serializer.data)
+    
+    elif request.method == 'PUT':
+        serializer = AvaliacaoSerializer(avaliacao, data=request.data, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    elif request.method == 'DELETE':
+        avaliacao.delete()
+        return Response({'success': 'Avaliação excluída com sucesso.'}, status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET'])
+def pode_avaliar_agendamento(request, agendamento_id):
+    """
+    Verifica se o usuário pode avaliar um agendamento específico
+    """
+    # Busca o usuário logado via JWT manualmente
+    token = request.COOKIES.get('jwt') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        return Response({'error': 'Não autenticado.'}, status=401)
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get('user_id')
+        usuario = Usuario.objects.get(id=user_id)
+    except Exception:
+        return Response({'error': 'Usuário não autenticado.'}, status=401)
+    
+    try:
+        agendamento = Agendamento.objects.get(id=agendamento_id)
+    except Agendamento.DoesNotExist:
+        return Response({'error': 'Agendamento não encontrado.'}, status=404)
+    
+    # Verifica se o usuário está relacionado ao agendamento
+    if usuario not in [agendamento.usuario, agendamento.psiquiatra, agendamento.psicologo]:
+        return Response({'pode_avaliar': False, 'motivo': 'Usuário não relacionado ao agendamento'})
+    # Verifica se a consulta foi concluída
+    if agendamento.status != 'Concluida':
+        return Response({'pode_avaliar': False, 'motivo': 'Consulta ainda não foi concluída'})
+    # Define o tipo de avaliador
+    if usuario == agendamento.usuario:
+        tipo_avaliador = 'paciente'
+    else:
+        tipo_avaliador = 'profissional'
+    # Verifica se já existe avaliação do usuário para este agendamento
+    avaliacao_existente = Avaliacao.objects.filter(
+        agendamento=agendamento,
+        avaliador=usuario,
+        tipo_avaliador=tipo_avaliador
+    ).exists()
+    if avaliacao_existente:
+        return Response({'pode_avaliar': False, 'motivo': 'Usuário já avaliou esta consulta'})
+    return Response({
+        'pode_avaliar': True,
+        'tipo_avaliador': tipo_avaliador,
+        'agendamento_id': agendamento.id
+    })

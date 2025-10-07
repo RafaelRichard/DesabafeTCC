@@ -5,6 +5,7 @@ import { getBackendUrl } from '../utils/backend';
 import { useRouter } from 'next/navigation';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import AvaliacoesList from '../components/AvaliacoesList';
 
 interface Psiquiatra {
   id: number;
@@ -107,29 +108,39 @@ export default function Psiquiatria() {
               <div className="text-center text-gray-500">Nenhum psiquiatra encontrado.</div>
             ) : (
               <>
-                <div className="grid sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8">
                   {psiquiatras
                     .slice((page - 1) * pageSize, page * pageSize)
                     .map((psiquiatra) => (
                   <div
                     key={psiquiatra.id}
-                    className="bg-gray-50 rounded-xl shadow-md hover:shadow-lg transition duration-300 p-6 flex flex-col items-center text-center h-full justify-between"
-                    style={{ minHeight: 340 }}
+                    className="bg-gray-50 rounded-xl shadow-md hover:shadow-lg transition duration-300 p-4 sm:p-6 flex flex-col items-center text-center h-full justify-between"
+                    style={{ minHeight: 380 }}
                   >
                     <img
                       src={psiquiatra.foto ? `${getBackendUrl()}/${psiquiatra.foto}` : "/img/logo.png"}
                       alt={`Foto de ${psiquiatra.nome}`}
-                      className="w-24 h-24 rounded-full object-cover mb-4 border-2 border-indigo-100"
+                      className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-full object-cover mb-3 sm:mb-4 border-2 border-indigo-100"
                     />
-                    <h3 className="text-xl font-semibold text-indigo-600">{psiquiatra.nome}</h3>
-                    <p className="text-gray-600">{psiquiatra.especialidade || 'Especialista em saúde mental'}</p>
-                    <p className="text-gray-500 text-md mt-1">CRM: {psiquiatra.crm || 'Não informado'}</p>
-                    <p className="text-gray-500 text-sm mt-1">Valor da consulta:</p>
-                      <p className="text-indigo-700 font-bold text-lg mt-2">{psiquiatra.valor_consulta ? Number(psiquiatra.valor_consulta).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor não informado'}</p>
+                    <h3 className="text-lg sm:text-xl font-semibold text-indigo-600">{psiquiatra.nome}</h3>
+                    <p className="text-sm sm:text-base text-gray-600">{psiquiatra.especialidade || 'Especialista em saúde mental'}</p>
+                    <p className="text-xs sm:text-sm text-gray-500 mt-1">CRM: {psiquiatra.crm || 'Não informado'}</p>
+                    <p className="text-xs sm:text-sm text-gray-500 mt-1">Valor da consulta:</p>
+                      <p className="text-sm sm:text-base lg:text-lg text-indigo-700 font-bold mt-2">{psiquiatra.valor_consulta ? Number(psiquiatra.valor_consulta).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor não informado'}</p>
+                    
+                    {/* Avaliações Resumidas */}
+                    <div className="mt-3 w-full">
+                      <AvaliacoesList 
+                        profissionalId={psiquiatra.id} 
+                        showTitle={false} 
+                        maxAvaliacoes={0} // Só mostra estatísticas
+                      />
+                    </div>
+                    
                     <div className="flex-grow" />
                     <button
                       onClick={() => handleAgendarConsulta(psiquiatra.id)}
-                      className="mt-6 bg-indigo-600 text-white px-5 py-2 rounded-full hover:bg-indigo-700 transition duration-300 text-sm font-medium w-full"
+                      className="mt-4 sm:mt-6 bg-indigo-600 text-white px-4 sm:px-5 py-2 rounded-full hover:bg-indigo-700 transition duration-300 text-xs sm:text-sm font-medium w-full"
                       style={{ marginTop: 'auto' }}
                     >
                       Agendar Consulta
@@ -139,10 +150,10 @@ export default function Psiquiatria() {
                 </div>
 
                 {/* Pagination controls */}
-                <div className="mt-6 flex items-center justify-center gap-3">
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
                   <button
                     onClick={() => setPage(p => Math.max(1, p - 1))}
-                    className="px-3 py-1 bg-white border rounded-md hover:bg-gray-100"
+                    className="px-2 sm:px-3 py-1 bg-white border rounded-md hover:bg-gray-100 text-sm"
                     disabled={page === 1}
                   >
                     Anterior
@@ -152,7 +163,7 @@ export default function Psiquiatria() {
                     <button
                       key={pnum}
                       onClick={() => setPage(pnum)}
-                      className={`px-3 py-1 rounded-md ${pnum === page ? 'bg-indigo-600 text-white' : 'bg-white border hover:bg-gray-100'}`}
+                      className={`px-2 sm:px-3 py-1 rounded-md text-sm ${pnum === page ? 'bg-indigo-600 text-white' : 'bg-white border hover:bg-gray-100'}`}
                     >
                       {pnum}
                     </button>
@@ -160,7 +171,7 @@ export default function Psiquiatria() {
 
                   <button
                     onClick={() => setPage(p => Math.min(Math.ceil(psiquiatras.length / pageSize), p + 1))}
-                    className="px-3 py-1 bg-white border rounded-md hover:bg-gray-100"
+                    className="px-2 sm:px-3 py-1 bg-white border rounded-md hover:bg-gray-100 text-sm"
                     disabled={page >= Math.ceil(psiquiatras.length / pageSize)}
                   >
                     Próximo

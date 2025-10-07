@@ -46,7 +46,9 @@ from app_projeto.views import (
     RecuperarSenhaAPIView, 
     RedefinirSenhaAPIView,
     listar_agendamentos_profissional, listar_agendamentos_paciente, deletar_agendamento,
-    detalhar_agendamento, horarios_ocupados, upload_foto_usuario, listar_prontuarios, prontuario_detalhe_editar, estornar_pagamento_stripe
+    detalhar_agendamento, horarios_ocupados, horarios_disponiveis, upload_foto_usuario, listar_prontuarios, prontuario_detalhe_editar, baixar_pdf_prontuario, enviar_prontuario_email, estornar_pagamento_stripe,
+    horarios_trabalho_profissional, horario_trabalho_detalhe, horarios_trabalho_profissional_publico,
+    criar_avaliacao, listar_avaliacoes_usuario, listar_avaliacoes_agendamento, listar_avaliacoes_profissional, listar_melhores_avaliacoes, detalhes_avaliacao, pode_avaliar_agendamento
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -91,6 +93,8 @@ urlpatterns = [
     #PRONTUARIOS
     path('api/prontuarios/', listar_prontuarios, name='listar_prontuarios'),
     path('api/prontuarios/<int:id>/', prontuario_detalhe_editar, name='prontuario_detalhe_editar'),
+    path('api/prontuarios/<int:id>/baixar-pdf/', baixar_pdf_prontuario, name='baixar_pdf_prontuario'),
+    path('api/prontuarios/<int:id>/enviar-email/', enviar_prontuario_email, name='enviar_prontuario_email'),
     
     
     path('api/enderecos_usuario/<int:usuario_id>/', enderecos_usuario, name='enderecos_usuario'),
@@ -104,6 +108,21 @@ urlpatterns = [
 
     # HORÁRIOS OCUPADOS
     path('api/horarios_ocupados/', horarios_ocupados, name='horarios_ocupados'),
+    path('api/horarios_disponiveis/', horarios_disponiveis, name='horarios_disponiveis'),
+
+    # HORÁRIOS DE TRABALHO
+    path('api/horarios-trabalho/', horarios_trabalho_profissional, name='horarios_trabalho_profissional'),
+    path('api/horarios-trabalho/<int:id>/', horario_trabalho_detalhe, name='horario_trabalho_detalhe'),
+    path('api/horarios-trabalho/profissional/<int:profissional_id>/', horarios_trabalho_profissional_publico, name='horarios_trabalho_publico'),
+
+    # AVALIAÇÕES
+    path('api/avaliacoes/criar/', criar_avaliacao, name='criar_avaliacao'),
+    path('api/avaliacoes/usuario/', listar_avaliacoes_usuario, name='listar_avaliacoes_usuario'),
+    path('api/avaliacoes/agendamento/<int:agendamento_id>/', listar_avaliacoes_agendamento, name='listar_avaliacoes_agendamento'),
+    path('api/avaliacoes/profissional/<int:profissional_id>/', listar_avaliacoes_profissional, name='listar_avaliacoes_profissional'),
+    path('api/avaliacoes/melhores/', listar_melhores_avaliacoes, name='listar_melhores_avaliacoes'),
+    path('api/avaliacoes/<int:avaliacao_id>/', detalhes_avaliacao, name='detalhes_avaliacao'),
+    path('api/avaliacoes/pode-avaliar/<int:agendamento_id>/', pode_avaliar_agendamento, name='pode_avaliar_agendamento'),
 
     #RECUPERAR SENHA
     path('api/recuperar-senha/', RecuperarSenhaAPIView.as_view(), name='recuperar_senha'),

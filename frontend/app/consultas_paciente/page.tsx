@@ -8,6 +8,8 @@ import { Dialog } from '@headlessui/react';
 import { toast } from 'react-toastify';
 import { format as formatDate } from 'date-fns';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
+import AvaliacaoModal from '../components/AvaliacaoModal';
+import { convertAgendamentosToEvents } from '../utils/dateUtils';
 
 interface ConsultaEvent {
   id: number;
@@ -37,8 +39,12 @@ export default function ConsultasPaciente() {
   }, []);
   const [consultas, setConsultas] = useState<ConsultaEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cancelando, setCancelando] = useState(false);
   const [selectedConsulta, setSelectedConsulta] = useState<any | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [avaliacaoModalOpen, setAvaliacaoModalOpen] = useState(false);
+  const [agendamentoParaAvaliar, setAgendamentoParaAvaliar] = useState<number | null>(null);
+  const [consultasAvaliaveis, setConsultasAvaliaveis] = useState<Set<number>>(new Set());
   const today = new Date();
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
   const [selectedDate, setSelectedDate] = useState(today);
@@ -100,6 +106,24 @@ export default function ConsultasPaciente() {
     if (view === 'day') setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1));
   };
 
+  const handleAvaliar = (agendamentoId: number) => {
+    // Fechar o modal de detalhes da consulta
+    setModalOpen(false);
+    setSelectedConsulta(null);
+    
+    // Abrir modal de avaliação diretamente 
+    setAgendamentoParaAvaliar(agendamentoId);
+    setAvaliacaoModalOpen(true);
+  };
+
+  const handleAvaliacaoSuccess = () => {
+    toast.success('Avaliação enviada com sucesso!');
+    setAvaliacaoModalOpen(false);
+    setAgendamentoParaAvaliar(null);
+    // Refresh das consultas para atualizar a lista de avaliáveis
+    fetchConsultas();
+  };
+
   const eventosPorDia: { [key: string]: ConsultaEvent[] } = {};
   consultas.forEach((ev: ConsultaEvent) => {
     if (ev.start) {
@@ -145,36 +169,54 @@ export default function ConsultasPaciente() {
       }
       if (!res.ok) throw new Error("Erro ao buscar consultas");
       const data = await res.json();
-      const eventos = data.map((c: any) => {
-        let start: Date | null = null;
-        let end: Date | null = null;
-        // Preferir data_iso se existir
-        if (c.data_iso) {
-          start = new Date(c.data_iso);
-          end = new Date(start.getTime() + 60 * 60 * 1000);
-        } else if (c.data && c.hora) {
-          const dataHora = `${c.data}T${c.hora.length === 5 ? c.hora + ':00' : c.hora}`;
-          start = new Date(dataHora);
-          end = new Date(start.getTime() + 60 * 60 * 1000);
-        }
-        return {
-          ...c,
-          title: `${c.profissional?.nome || ''} (${c.status})`,
-          start,
-          end,
-          link_consulta: c.link_consulta || '',
-        };
-      }).filter((ev: any) => {
-        const valido = ev.start instanceof Date && !isNaN(ev.start) && ev.end instanceof Date && !isNaN(ev.end);
-        return valido;
-      });
+      
+      // CORREÇÃO: Usar utilitário padronizado para conversão
+      const eventos = convertAgendamentosToEvents(data, 'profissional');
       setConsultas(eventos);
+      
+      // Verificar quais consultas concluídas podem ser avaliadas
+      const concluidas = eventos.filter(ev => ev.status === 'Concluida');
+      if (concluidas.length > 0) {
+        verificarConsultasAvaliaveis(concluidas.map(c => c.id));
+      } else {
+        setConsultasAvaliaveis(new Set());
+      }
     } catch (err) {
       toast.error('Erro ao buscar consultas. Faça login novamente.');
       setConsultas([]);
+      setConsultasAvaliaveis(new Set());
     } finally {
       setLoading(false);
     }
+  };
+
+  const verificarConsultasAvaliaveis = async (ids: number[]) => {
+    const avaliaveis = new Set<number>();
+    
+    // Verificar em paralelo todas as consultas concluídas
+    const promessas = ids.map(async (id) => {
+      try {
+        const response = await fetch(`http://localhost:8000/api/avaliacoes/pode-avaliar/${id}/`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.pode_avaliar) {
+            avaliaveis.add(id);
+          }
+        }
+      } catch (error) {
+        console.error(`Erro ao verificar se pode avaliar consulta ${id}:`, error);
+      }
+    });
+    
+    await Promise.all(promessas);
+    setConsultasAvaliaveis(avaliaveis);
   };
 
   useEffect(() => {
@@ -203,6 +245,7 @@ export default function ConsultasPaciente() {
 
   const handleCancelar = async () => {
     if (!selectedConsulta) return;
+    setCancelando(true);
     try {
       await refundAgendamentoStripe(selectedConsulta.id);
       toast.success('Estorno realizado e agendamento cancelado!');
@@ -217,6 +260,8 @@ export default function ConsultasPaciente() {
       } else {
         toast.error(err.message || 'Erro ao cancelar/estornar agendamento.');
       }
+    } finally {
+      setCancelando(false);
     }
   };
 
@@ -454,14 +499,52 @@ export default function ConsultasPaciente() {
             <div className="flex flex-col md:flex-row gap-4 mt-10 justify-center">
               {(selectedConsulta?.status === 'pendente' || selectedConsulta?.status === 'paga') && (
                 <>
-                  <button onClick={handleCancelar} className="bg-gradient-to-r from-yellow-400 to-red-400 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-yellow-500 hover:to-red-500 transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400">Cancelar</button>
+                  <button 
+                    onClick={handleCancelar} 
+                    disabled={cancelando}
+                    className="bg-gradient-to-r from-yellow-400 to-red-400 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-yellow-500 hover:to-red-500 transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {cancelando ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Cancelando...
+                      </>
+                    ) : (
+                      'Cancelar'
+                    )}
+                  </button>
                 </>
+              )}
+              {selectedConsulta?.status === 'Concluida' && consultasAvaliaveis.has(selectedConsulta.id) && (
+                <button 
+                  onClick={() => handleAvaliar(selectedConsulta.id)} 
+                  className="bg-gradient-to-r from-green-400 to-blue-400 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-green-500 hover:to-blue-500 transition-all focus:outline-none focus:ring-2 focus:ring-green-400"
+                >
+                  ⭐ Avaliar Atendimento
+                </button>
               )}
               <button onClick={() => setModalOpen(false)} className="px-8 py-3 rounded-lg border border-gray-300 text-gray-700 font-bold hover:bg-gray-100 transition-all focus:outline-none focus:ring-2 focus:ring-gray-300">Fechar</button>
             </div>
           </Dialog.Panel>
         </div>
       </Dialog>
+
+      {/* Modal de Avaliação */}
+      {agendamentoParaAvaliar && (
+        <AvaliacaoModal
+          isOpen={avaliacaoModalOpen}
+          onClose={() => {
+            setAvaliacaoModalOpen(false);
+            setAgendamentoParaAvaliar(null);
+          }}
+          agendamentoId={agendamentoParaAvaliar}
+          tipoAvaliador="paciente"
+          onSuccess={handleAvaliacaoSuccess}
+        />
+      )}
     </div>
   );
 }

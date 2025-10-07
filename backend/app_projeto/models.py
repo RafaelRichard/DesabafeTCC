@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
 import os
 from django.db.models.signals import post_save
@@ -11,6 +12,8 @@ class Prontuario(models.Model):
     agendamento = models.OneToOneField('Agendamento', on_delete=models.CASCADE, related_name='prontuario')
     texto = models.TextField(blank=True, null=True)  # O texto do prontuário pode começar vazio (privado)
     mensagem_paciente = models.TextField(blank=True, null=True)  # Mensagem visível ao paciente
+    atestado_pdf = models.FileField(upload_to='prontuarios/atestados/', blank=True, null=True)
+    receita_pdf = models.FileField(upload_to='prontuarios/receitas/', blank=True, null=True)
     data_criacao = models.DateTimeField(auto_now_add=True)
     data_atualizacao = models.DateTimeField(auto_now=True)
 
@@ -92,6 +95,7 @@ class Agendamento(models.Model):
         ('pendente', 'Pendente'),
         ('paga', 'Consulta paga'),
         ('confirmado', 'Confirmado'),
+        ('Concluida', 'Concluída'),
         ('cancelado', 'Cancelado'),
     ]
 
@@ -135,3 +139,80 @@ class Endereco(models.Model):
 
     def __str__(self):
         return f"{self.logradouro}, {self.numero} - {self.cidade}/{self.estado} ({self.tipo})"
+
+
+class HorarioTrabalho(models.Model):
+    DIAS_SEMANA = [
+        (0, 'Segunda-feira'),
+        (1, 'Terça-feira'),
+        (2, 'Quarta-feira'),
+        (3, 'Quinta-feira'),
+        (4, 'Sexta-feira'),
+        (5, 'Sábado'),
+        (6, 'Domingo'),
+    ]
+    
+    profissional = models.ForeignKey(
+        Usuario, 
+        on_delete=models.CASCADE, 
+        related_name='horarios_trabalho',
+        limit_choices_to={'role__in': ['Psiquiatra', 'Psicologo']}
+    )
+    dia_semana = models.IntegerField(choices=DIAS_SEMANA)
+    horario_inicio = models.TimeField()
+    horario_fim = models.TimeField()
+    ativo = models.BooleanField(default=True)
+    data_criacao = models.DateTimeField(auto_now_add=True)
+    data_atualizacao = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['profissional', 'dia_semana', 'horario_inicio', 'horario_fim']
+        ordering = ['profissional', 'dia_semana', 'horario_inicio']
+
+    def clean(self):
+        if self.horario_inicio >= self.horario_fim:
+            raise ValidationError('Horário de início deve ser anterior ao horário de fim.')
+        
+        # Verifica se o profissional tem role correto
+        if self.profissional.role not in ['Psiquiatra', 'Psicologo']:
+            raise ValidationError('Apenas psiquiatras e psicólogos podem cadastrar horários de trabalho.')
+
+    def __str__(self):
+        dia_nome = dict(self.DIAS_SEMANA)[self.dia_semana]
+        return f"{self.profissional.nome} - {dia_nome} ({self.horario_inicio} às {self.horario_fim})"
+
+
+class Avaliacao(models.Model):
+    TIPO_AVALIADOR_CHOICES = [
+        ('paciente', 'Paciente'),
+        ('profissional', 'Profissional'),
+    ]
+    
+    agendamento = models.ForeignKey(Agendamento, on_delete=models.CASCADE, related_name='avaliacoes')
+    avaliador = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='avaliacoes_feitas')
+    tipo_avaliador = models.CharField(max_length=20, choices=TIPO_AVALIADOR_CHOICES)
+    nota = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Nota de 1 a 5 estrelas"
+    )
+    comentario = models.TextField(blank=True, null=True, max_length=500)
+    data_criacao = models.DateTimeField(auto_now_add=True)
+    data_atualizacao = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['agendamento', 'avaliador', 'tipo_avaliador']
+        ordering = ['-data_criacao']
+
+    def clean(self):
+        # Verifica se o avaliador está relacionado ao agendamento
+        if self.tipo_avaliador == 'paciente' and self.avaliador != self.agendamento.usuario:
+            raise ValidationError('Apenas o paciente da consulta pode fazer avaliação como paciente.')
+        elif self.tipo_avaliador == 'profissional' and self.avaliador not in [self.agendamento.psiquiatra, self.agendamento.psicologo]:
+            raise ValidationError('Apenas o profissional da consulta pode fazer avaliação como profissional.')
+        
+        # Verifica se a consulta já foi realizada
+        if self.agendamento.status != 'Concluida':
+            raise ValidationError('Só é possível avaliar consultas concluídas.')
+
+    def __str__(self):
+        return f"Avaliação {self.nota}★ - {self.tipo_avaliador} - {self.agendamento}"

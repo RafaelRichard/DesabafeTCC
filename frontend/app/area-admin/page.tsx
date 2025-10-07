@@ -14,7 +14,7 @@ import {
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, ChartTooltip, ChartLegend);
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FiUsers, FiClipboard, FiSettings, FiList } from 'react-icons/fi';
+import { FiUsers, FiClipboard, FiFileText, FiFolder, FiBookOpen, FiCalendar, FiSettings, FiList } from 'react-icons/fi';
 import { jwtDecode } from 'jwt-decode';
 
 // Função para pegar o cookie pelo nome
@@ -121,7 +121,7 @@ export default function AreaDoAdmin() {
                         <span>Cadastrar Usuário</span>
                     </Link>
                     <Link href="/consultas_admin" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">
-                        <FiClipboard size={20} />
+                        <FiCalendar size={20} />
                         <span>Gerenciar Consultas</span>
                     </Link>
                     <Link href="/meu_perfil_admin" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-indigo-700 transition duration-300">

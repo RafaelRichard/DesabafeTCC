@@ -8,6 +8,8 @@ import { Dialog } from '@headlessui/react';
 import { toast } from 'react-toastify';
 import { format as formatDate } from 'date-fns';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
+import AvaliacaoModal from '../components/AvaliacaoModal';
+import { convertAgendamentosToEvents } from '../utils/dateUtils';
 
 interface ConsultaEvent {
   id: number;
@@ -38,8 +40,14 @@ export default function ConsultasPsiquiatras() {
   }, []);
   const [consultas, setConsultas] = useState<ConsultaEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cancelando, setCancelando] = useState(false);
   const [selectedConsulta, setSelectedConsulta] = useState<any | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  // Estados para avaliação
+  const [avaliacaoModalOpen, setAvaliacaoModalOpen] = useState(false);
+  const [agendamentoParaAvaliar, setAgendamentoParaAvaliar] = useState<number | null>(null);
+  const [consultasAvaliaveis, setConsultasAvaliaveis] = useState<Set<number>>(new Set());
+  
   // Modal para mostrar todas as consultas do dia
   const [showAllModal, setShowAllModal] = useState(false);
   const [allConsultasDia, setAllConsultasDia] = useState<ConsultaEvent[]>([]);
@@ -134,36 +142,58 @@ export default function ConsultasPsiquiatras() {
   const fetchConsultas = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/agendamentos_profissional/", {
+      const res = await fetch("http://localhost:8000/api/agendamentos_profissional/?tipo=psiquiatra", {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Erro ao buscar consultas");
       const data = await res.json();
-      const eventos = data.map((c: any) => {
-        let start: Date | null = null;
-        let end: Date | null = null;
-        if (c.data && c.hora) {
-          const dataHora = `${c.data}T${c.hora.length === 5 ? c.hora + ':00' : c.hora}`;
-          start = new Date(dataHora);
-          end = new Date(start.getTime() + 60 * 60 * 1000);
-        }
-        return {
-          ...c,
-          title: `${c.paciente?.nome || ''} (${c.status})`,
-          start,
-          end,
-          link_consulta: c.link_consulta || '', // Usa sempre o valor do backend
-        };
-      }).filter((ev: any) => {
-        const valido = ev.start instanceof Date && !isNaN(ev.start) && ev.end instanceof Date && !isNaN(ev.end);
-        return valido;
-      });
+      
+      // CORREÇÃO: Usar utilitário padronizado para conversão
+      const eventos = convertAgendamentosToEvents(data, 'paciente');
       setConsultas(eventos);
+      
+      // Verificar quais consultas concluídas podem ser avaliadas
+      const concluidas = eventos.filter(ev => ev.status === 'Concluida');
+      if (concluidas.length > 0) {
+        verificarConsultasAvaliaveis(concluidas.map(c => c.id));
+      } else {
+        setConsultasAvaliaveis(new Set());
+      }
     } catch (err) {
       setConsultas([]);
+      setConsultasAvaliaveis(new Set());
     } finally {
       setLoading(false);
     }
+  };
+
+  const verificarConsultasAvaliaveis = async (ids: number[]) => {
+    const avaliaveis = new Set<number>();
+    
+    // Verificar em paralelo todas as consultas concluídas
+    const promessas = ids.map(async (id) => {
+      try {
+        const response = await fetch(`http://localhost:8000/api/avaliacoes/pode-avaliar/${id}/`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.pode_avaliar) {
+            avaliaveis.add(id);
+          }
+        }
+      } catch (error) {
+        console.error(`Erro ao verificar se pode avaliar consulta ${id}:`, error);
+      }
+    });
+    
+    await Promise.all(promessas);
+    setConsultasAvaliaveis(avaliaveis);
   };
 
   useEffect(() => {
@@ -179,34 +209,42 @@ export default function ConsultasPsiquiatras() {
 
   // Função para abrir modal ao clicar no evento
   const handleSelectEvent = (event: any) => {
+    console.log('[Psiquiatras] handleSelectEvent called, event id=', event?.id);
     setSelectedConsulta(event);
     setModalOpen(true);
   };
 
   // Função para confirmar agendamento
   const handleConfirmar = async () => {
+    await handleAlterarStatus('confirmado', 'Agendamento confirmado!');
+  };
+
+  // Função genérica para alterar status
+  const handleAlterarStatus = async (novoStatus: string, mensagemSucesso: string) => {
     if (!selectedConsulta) return;
     try {
       const agendamentoCompleto = await fetchAgendamentoById(selectedConsulta.id);
-      const atualizado = { ...agendamentoCompleto, status: 'confirmado' };
+      const atualizado = { ...agendamentoCompleto, status: novoStatus };
       const res = await fetch(`http://localhost:8000/api/agendamentos/${selectedConsulta.id}/atualizar/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(atualizado),
       });
-      if (!res.ok) throw new Error('Erro ao confirmar agendamento');
-      toast.success('Agendamento confirmado!');
+      if (!res.ok) throw new Error('Erro ao atualizar agendamento');
+      toast.success(mensagemSucesso);
       setModalOpen(false);
       fetchConsultas();
-    } catch (err) {
-      toast.error('Erro ao confirmar agendamento.');
+    } catch (error) {
+      console.error('Erro ao atualizar agendamento:', error);
+      toast.error('Erro ao atualizar agendamento');
     }
   };
 
   // Função para cancelar agendamento
   const handleCancelar = async () => {
     if (!selectedConsulta) return;
+    setCancelando(true);
     try {
       await refundAgendamentoStripe(selectedConsulta.id);
       toast.success('Estorno realizado e agendamento cancelado!');
@@ -214,6 +252,8 @@ export default function ConsultasPsiquiatras() {
       fetchConsultas();
     } catch (err: any) {
       toast.error(err.message || 'Erro ao cancelar/estornar agendamento.');
+    } finally {
+      setCancelando(false);
     }
   };
 
@@ -234,10 +274,33 @@ export default function ConsultasPsiquiatras() {
     }
   };
 
+  // Funções para avaliação
+  const handleAvaliar = (agendamentoId: number) => {
+    // Fechar o modal de detalhes da consulta
+    setModalOpen(false);
+    setSelectedConsulta(null);
+    
+    // Abrir modal de avaliação diretamente (já verificamos antes)
+    setAgendamentoParaAvaliar(agendamentoId);
+    setAvaliacaoModalOpen(true);
+  };
+
+  const handleAvaliacaoSuccess = () => {
+    toast.success('Avaliação enviada com sucesso!');
+    setAvaliacaoModalOpen(false);
+    setAgendamentoParaAvaliar(null);
+    fetchConsultas();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-emerald-50 to-white flex flex-col items-center justify-start py-12 px-2 sm:px-6 lg:px-8">
       <h1 className="text-4xl md:text-5xl font-extrabold text-center mb-12 bg-gradient-to-r from-indigo-600 via-emerald-500 to-cyan-400 bg-clip-text text-transparent drop-shadow-xl tracking-tight">Minhas Consultas</h1>
       <div className="w-full max-w-4xl bg-white/80 backdrop-blur-2xl rounded-3xl shadow-2xl border border-emerald-100 p-2 md:p-10 ring-1 ring-emerald-100">
+        {/* DEBUG: quick action buttons (remover depois)
+        <div className="flex gap-2 mb-4">
+          <button onClick={() => { console.log('DEBUG consultas:', consultas); }} className="px-3 py-1 rounded bg-emerald-100">Log consultas</button>
+          <button onClick={() => { if (consultas[0]) { console.log('DEBUG trigger avaliar for first:', consultas[0].id); handleAvaliar(consultas[0].id); } else { console.log('DEBUG no consultas available'); } }} className="px-3 py-1 rounded bg-emerald-200">Trigger Avaliar (1ª)</button>
+        </div> */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div className="flex gap-2 justify-center md:justify-start">
             <button onClick={() => setView('month')} className={`px-4 py-2 rounded-lg font-bold transition ${view === 'month' ? 'bg-emerald-600 text-white shadow' : 'bg-gray-100 text-emerald-700 hover:bg-emerald-50'}`}>Mês</button>
@@ -275,8 +338,14 @@ export default function ConsultasPsiquiatras() {
                             {toShow.map(ev => (
                               <button
                                 key={ev.id}
-                                onClick={() => handleSelectEvent(ev)}
-                                className={`w-full text-left px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white truncate text-xs md:text-sm ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}
+                                onClick={() => { console.log('[Psiquiatras] calendar event clicked, id=', ev?.id); handleSelectEvent(ev); }}
+                                className={`w-full text-left px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white truncate text-xs md:text-sm ${
+                                  ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : 
+                                  ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : 
+                                  ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 
+                                  ev.status === 'Concluida' ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' :
+                                  'bg-indigo-200 text-indigo-900'
+                                }`}
                                 title={ev.title}
                               >
                                 <span className="truncate block">{ev.title}</span>
@@ -306,8 +375,14 @@ export default function ConsultasPsiquiatras() {
                             {toShow.map(ev => (
                               <button
                                 key={ev.id}
-                                onClick={() => handleSelectEvent(ev)}
-                                className={`w-full text-left px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white truncate text-xs md:text-sm ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}
+                                onClick={() => { console.log('[Psiquiatras] calendar event clicked (week view), id=', ev?.id); handleSelectEvent(ev); }}
+                                className={`w-full text-left px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white truncate text-xs md:text-sm ${
+                                  ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : 
+                                  ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : 
+                                  ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 
+                                  ev.status === 'Concluida' ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' :
+                                  'bg-indigo-200 text-indigo-900'
+                                }`}
                                 title={ev.title}
                                 style={{ minHeight: 32 }}
                               >
@@ -336,8 +411,14 @@ export default function ConsultasPsiquiatras() {
                         return eventos.map(ev => (
                           <button
                             key={ev.id}
-                            onClick={() => handleSelectEvent(ev)}
-                            className={`w-full text-left px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white text-sm md:text-base ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}
+                            onClick={() => { console.log('[Psiquiatras] calendar event clicked (day view), id=', ev?.id); handleSelectEvent(ev); }}
+                            className={`w-full text-left px-2 py-1 rounded-lg font-semibold shadow-sm border-2 border-white text-sm md:text-base ${
+                              ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : 
+                              ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : 
+                              ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 
+                              ev.status === 'Concluida' ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' :
+                              'bg-indigo-200 text-indigo-900'
+                            }`}
                             title={ev.title}
                           >
                             <div className="text-left space-y-1">
@@ -378,7 +459,13 @@ export default function ConsultasPsiquiatras() {
             <Dialog.Title as="h2" className="text-2xl md:text-3xl font-bold mb-6 bg-gradient-to-r from-indigo-600 via-emerald-500 to-cyan-400 bg-clip-text text-transparent text-center">Consultas do dia {allConsultasDiaDate}</Dialog.Title>
             <div className="space-y-3">
               {allModalPaginated.map(ev => (
-                <div key={ev.id} className={`w-full px-4 py-3 rounded-lg shadow-sm border-2 border-white text-xs md:text-sm mb-2 ${ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 'bg-indigo-200 text-indigo-900'}`}>
+                <div key={ev.id} className={`w-full px-4 py-3 rounded-lg shadow-sm border-2 border-white text-xs md:text-sm mb-2 ${
+                  ev.status === 'confirmado' ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 text-white' : 
+                  ev.status === 'pendente' ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900' : 
+                  ev.status === 'cancelado' ? 'bg-gradient-to-r from-red-400 to-pink-400 text-white' : 
+                  ev.status === 'Concluida' ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' :
+                  'bg-indigo-200 text-indigo-900'
+                }`}>
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                     <div>
                       <div className="font-bold text-base md:text-lg">{ev.paciente?.nome || ''}</div>
@@ -390,7 +477,7 @@ export default function ConsultasPsiquiatras() {
                       )}
                     </div>
                     <button
-                      onClick={() => { setShowAllModal(false); handleSelectEvent(ev); }}
+                      onClick={() => { console.log('[Psiquiatras] showAllModal -> Ver detalhes clicked, id=', ev?.id); setShowAllModal(false); handleSelectEvent(ev); }}
                       className="mt-2 md:mt-0 px-4 py-2 rounded-lg bg-white/80 text-emerald-700 font-bold border border-emerald-200 hover:bg-emerald-100 transition"
                     >Ver detalhes</button>
                   </div>
@@ -439,7 +526,12 @@ export default function ConsultasPsiquiatras() {
                 </div>
                 <div className="bg-white rounded-xl p-4 shadow-sm border border-emerald-100">
                   <div><b>Data:</b> {selectedConsulta.start ? formatDate(selectedConsulta.start, "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR }) : '-'}</div>
-                  <div><b>Status:</b> <span className={`font-semibold ${selectedConsulta.status === 'pendente' ? 'text-yellow-600' : selectedConsulta.status === 'confirmado' ? 'text-emerald-600' : 'text-red-600'}`}>{selectedConsulta.status}</span></div>
+                  <div><b>Status:</b> <span className={`font-semibold ${
+                    selectedConsulta.status === 'pendente' ? 'text-yellow-600' : 
+                    selectedConsulta.status === 'confirmado' ? 'text-emerald-600' : 
+                    selectedConsulta.status === 'Concluida' ? 'text-blue-600' : 
+                    'text-red-600'
+                  }`}>{selectedConsulta.status}</span></div>
                   {selectedConsulta.observacao && <div><b>Observação:</b> {selectedConsulta.observacao}</div>}
                   {selectedConsulta.link_consulta && (
                     <div>
@@ -457,11 +549,41 @@ export default function ConsultasPsiquiatras() {
             <div className="flex flex-col md:flex-row gap-4 mt-10 justify-center">
               {(selectedConsulta?.status === 'pendente' || selectedConsulta?.status === 'paga') && (
                 <>
-                  {selectedConsulta?.status === 'pendente' && (
-                    <button onClick={handleConfirmar} className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-emerald-600 hover:to-cyan-600 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400">Confirmar</button>
-                  )}
-                  <button onClick={handleCancelar} className="bg-gradient-to-r from-yellow-400 to-red-400 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-yellow-500 hover:to-red-500 transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400">Desmarcar</button>
+                  <button onClick={handleConfirmar} className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-emerald-600 hover:to-cyan-600 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400">Confirmar</button>
+                  <button 
+                    onClick={handleCancelar} 
+                    disabled={cancelando}
+                    className="bg-gradient-to-r from-yellow-400 to-red-400 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-yellow-500 hover:to-red-500 transition-all focus:outline-none focus:ring-2 focus:ring-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {cancelando ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Desmarcando...
+                      </>
+                    ) : (
+                      'Desmarcar'
+                    )}
+                  </button>
                 </>
+              )}
+              {selectedConsulta?.status === 'confirmado' && (
+                <button 
+                  onClick={() => handleAlterarStatus('Concluida', 'Consulta marcada como concluída!')} 
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-blue-600 hover:to-blue-700 transition-all focus:outline-none focus:ring-2 focus:ring-blue-400"
+                >
+                  Marcar como Concluída
+                </button>
+              )}
+              {selectedConsulta?.status === 'Concluida' && consultasAvaliaveis.has(selectedConsulta.id) && (
+                <button 
+                  onClick={() => handleAvaliar(selectedConsulta.id)} 
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-purple-600 hover:to-pink-600 transition-all focus:outline-none focus:ring-2 focus:ring-purple-400"
+                >
+                  ⭐ Avaliar Paciente
+                </button>
               )}
               {selectedConsulta?.status === 'cancelado' && (
                 <button onClick={handleExcluir} className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:from-red-600 hover:to-pink-600 transition-all focus:outline-none focus:ring-2 focus:ring-red-400">Excluir</button>
@@ -471,6 +593,20 @@ export default function ConsultasPsiquiatras() {
           </Dialog.Panel>
         </div>
       </Dialog>
+
+      {/* Modal de Avaliação */}
+      {agendamentoParaAvaliar && (
+        <AvaliacaoModal
+          isOpen={avaliacaoModalOpen}
+          onClose={() => {
+            setAvaliacaoModalOpen(false);
+            setAgendamentoParaAvaliar(null);
+          }}
+          agendamentoId={agendamentoParaAvaliar}
+          tipoAvaliador="profissional"
+          onSuccess={handleAvaliacaoSuccess}
+        />
+      )}
     </div>
   );
 }
